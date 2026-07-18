@@ -1,0 +1,13 @@
+node_modules
+.next
+dist
+.git
+.gitignore
+Dockerfile
+Dockerfile.dev
+README.md
+npm-debug.log*
+yarn-error.log*
+.eslintcache
+.env
+.env.*.local

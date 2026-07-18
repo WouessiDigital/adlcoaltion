@@ -1,0 +1,11 @@
+{
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "driver": "SQLite",
+            "name": "admins",
+            "group": "my-admins",
+            "database": "sqlite.db"
+        }
+    ]
+}

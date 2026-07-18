@@ -1,0 +1,11 @@
+FROM node:20-bullseye
+WORKDIR /app
+ENV NODE_ENV=development
+COPY package.json package-lock.json ./
+RUN npm install
+COPY . .
+RUN mkdir -p /data
+ENV PORT=3000
+EXPOSE 3000
+VOLUME ["/data"]
+CMD ["npm","run","dev"]
