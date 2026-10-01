@@ -56,6 +56,7 @@ function createAuth() {
     database: getDb(),
     trustedOrigins,
     baseURL: appBase,
+    basePath: "/admin/api/auth",
 
     advanced: {
       // FIX: Ensure proxy forwarding header checks are trusted behind Coolify (Nixpacks/Docker)
