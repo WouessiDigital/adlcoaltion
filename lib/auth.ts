@@ -67,8 +67,15 @@ function createAuth() {
       },
       allowCredentialsOnCrossOrigin: true,
     },
+    // Brute-force protection on sign-in, sign-up and password reset.
+    rateLimit: { enabled: true, window: 60, max: 10 },
     emailAndPassword: {
       enabled: true,
+      // SECURITY: public admin sign-up is closed. The old sign-up page only hid the form in the
+      // browser; the API itself stayed open, so anyone could create an admin account and read
+      // member data. To add an admin: set ADMIN_SIGNUP_ENABLED=true, restart, create the account,
+      // then remove the variable and restart again.
+      disableSignUp: process.env.ADMIN_SIGNUP_ENABLED !== "true",
       sendResetPassword: async ({ user, token }) => {
         const clientLink = `${appBase}/admin/reset-password?token=${encodeURIComponent(token)}`;
         try {

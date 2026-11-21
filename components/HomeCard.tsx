@@ -1,9 +1,11 @@
 'use client'
 import React from 'react'
 import { useRouter } from 'next/navigation'
+import { useI18n } from '../lib/i18n/LocaleProvider'
 
 const HomeCard = () => {
   const router = useRouter()
+  const { t } = useI18n()
 
   
   return (
@@ -29,7 +31,7 @@ const HomeCard = () => {
             px-2
             
           ">
-            Advancing Canada-Africa relations through African Diaspora leadership
+            {t.hero.title}
           </h1>
 
           {/* Subtitle */}
@@ -42,7 +44,7 @@ const HomeCard = () => {
             max-w-full sm:max-w-[90%] md:max-w-[85%] lg:max-w-[50%]
             px-4
           ">
-            Uniting African voices in Canada to shape policy, foster investment, and drive sustainable development across Africa.
+            {t.hero.subtitle}
           </p>
 
           {/* Buttons */}
@@ -83,7 +85,7 @@ const HomeCard = () => {
                 }
               }}
             >
-              Become a Member
+              {t.hero.becomeMember}
             </button>
 
             <button
@@ -102,8 +104,12 @@ const HomeCard = () => {
                 active:scale-95
               "
               type="button"
+              onClick={() => {
+                const el = document.getElementById('about')
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }}
             >
-              Learn More
+              {t.hero.learnMore}
             </button>
           </div>
         </div>

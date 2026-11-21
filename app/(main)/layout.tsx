@@ -1,37 +1,44 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import "../globals.css";
 import { Header, JoinForm } from '../../components/index';
+import { LocaleProvider } from '../../lib/i18n/LocaleProvider';
+import { dictionaries, isLocale, defaultLocale, LOCALE_COOKIE, type Locale } from '../../lib/i18n/dictionaries';
 
+async function getLocale(): Promise<Locale> {
+  const value = (await cookies()).get(LOCALE_COOKIE)?.value
+  return isLocale(value) ? value : defaultLocale
+}
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale()
+  const t = dictionaries[locale]
+  return {
+    title: t.meta.title,
+    description: t.meta.description,
+    openGraph: {
+      title: t.meta.title,
+      description: t.meta.description,
+      siteName: t.meta.title,
+      locale: locale === 'fr' ? 'fr_CA' : 'en_CA',
+      alternateLocale: locale === 'fr' ? 'en_CA' : 'fr_CA',
+      type: 'website',
+    },
+    alternates: { languages: { 'en-CA': '/?lang=en', 'fr-CA': '/?lang=fr' } },
+  }
+}
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: "African Diaspora Leaders Coalition",
-  description: "Uniting African voices in Canada to shape policy, foster investment, and drive sustainable development across Africa.",
-};
-
-
-
-export default function RootLayout({
+export default async function MainLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale()
   return (
-    <>
+    <LocaleProvider initialLocale={locale}>
         <Header />
-        {children}  {/* ← ADD THIS - renders your page content */}
+        {children}
         <JoinForm/>
-    </>
+    </LocaleProvider>
   );
 }
-

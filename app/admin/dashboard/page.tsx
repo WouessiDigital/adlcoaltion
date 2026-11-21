@@ -18,14 +18,17 @@ type Member = {
 export const dynamic = 'force-dynamic'
 
 export default async function Page() {
-    // Server-side: read all members from the SQLite database
+    // Server-side session check FIRST, before any member data is read.
+    const session = await auth.api.getSession({ headers: await headers() })
+    if (!session) redirect('/admin/login')
+
+    // Optional allowlist: ADMIN_EMAILS="a@x.org,b@y.org". When set, only these accounts see member data.
+    const allowed = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)
+    if (allowed.length && !allowed.includes(String(session.user?.email || '').toLowerCase())) redirect('/admin/login')
+
     const db = getDb()
     const stmt = db.prepare('SELECT id, name, email, message, datecreated FROM members ORDER BY id DESC')
     const members: Member[] = stmt.all()
-
-    // Server-side session check
-    const session = await auth.api.getSession({ headers: await headers() })
-    if (!session) redirect('/admin/login')
 
     return (
         <main className="p-6 ">

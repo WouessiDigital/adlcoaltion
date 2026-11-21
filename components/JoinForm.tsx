@@ -7,8 +7,10 @@ import Linkedin from '../public/social-icons/linkedin.png'
 import X from '../public/social-icons/X.png'
 import { useRouter } from 'next/navigation'
 import { Form } from '../components/index'
+import { useI18n } from '../lib/i18n/LocaleProvider'
 const JoinForm = () => {
     const router = useRouter()
+    const { t } = useI18n()
     return (
         <div>
             <div id="join" className='w-full flex justify-center items-center p-4 sm:p-6 md:p-0  pt-10 sm:mt-50'>
@@ -18,9 +20,8 @@ const JoinForm = () => {
         rounded-2xl bg-white align-middle border
         shadow-xl gap-10 relative z-40 -mb-50 md:-mb-20 lg:-mb-42'>
                     <div className='flex justify-center flex-col sm:w-[70%]'>
-                        <h1 className='font-bold text-[#16205B] text-2xl sm:text-3xl self-center mb-10 lg:text-5xl'>Join the Movement</h1>
-                        <p className='font-extralight text-center sm:text-xl'>ADLC is a recognized non-profit organization dedicated to creating a new framework for Diaspora-led diplomacy and development.
-                            Join our growing alliance to define the next chapter of Africa-Canada relations.</p>
+                        <h1 className='font-bold text-[#16205B] text-2xl sm:text-3xl self-center mb-10 lg:text-5xl'>{t.join.title}</h1>
+                        <p className='font-extralight text-center sm:text-xl'>{t.join.text}</p>
                     </div>
                     <Form />
 
@@ -52,7 +53,7 @@ const JoinForm = () => {
               "
                             type="button"
                         >
-                            Join our Newsletter
+                            {t.join.newsletter}
                         </button>
                     </div>
                 </div>
@@ -67,10 +68,10 @@ const JoinForm = () => {
                 <div className='w-full h-[80%] flex flex-col justify-end items-center'>
                     {/* Social icons row right above the divider */}
                     <div className='flex text-white gap-10 justify-start w-[90%]'>
-                        <p>About</p>
-                        <p>Contact</p>
-                        <p>Blog</p>
-                        <p>Resources</p>
+                        <p>{t.footer.about}</p>
+                        <p>{t.footer.contact}</p>
+                        <p>{t.footer.blog}</p>
+                        <p>{t.footer.resources}</p>
                     </div>
 
                     <div className='sm:w-[90%] flex justify-center sm:justify-end items-center gap-10 mt-8 sm:mt-0 mb-7'>
@@ -82,9 +83,9 @@ const JoinForm = () => {
                     <div className='w-[90%] border-t border-white'></div>
 
                     <div className='w-[90%] flex justify-between  mt-4 '>
-                <a className='text-white font-extralight flex justify-self-start' href="https://wouessi.com">Designed by Wouessi Inc.</a>
+                <a className='text-white font-extralight flex justify-self-start' href="https://wouessi.com">{t.footer.designedBy}</a>
 
-                        <p className='text-white font-extralight text-center sm:text-left'>© 2026 African Diaspora Leaders Coalition – All Rights Reserved</p>
+                        <p className='text-white font-extralight text-center sm:text-left'>{t.footer.rights}</p>
                     </div>
 
                 </div>
