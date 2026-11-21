@@ -6,7 +6,7 @@ import { useState } from 'react';
 import LogoIcon from '../public/logo-icon.png'
 import { z } from 'zod';
 import Image from 'next/image';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useI18n } from '../lib/i18n/LocaleProvider';
 import type { Dictionary } from '../lib/i18n/dictionaries';
 
@@ -28,6 +28,7 @@ const Form = () => {
     const [success, setSuccess] = useState<string | null>(null);
     const { t, locale } = useI18n();
     const schema = useMemo(() => makeSchema(t.form), [t]);
+    const honeypot = useRef<HTMLInputElement>(null);
 
     const {
         register,
@@ -51,7 +52,7 @@ const Form = () => {
             const res = await fetch(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...data, locale }),
+                body: JSON.stringify({ ...data, locale, website: honeypot.current?.value || '' }),
             });
 
             const result = await res.json().catch(() => ({}));
@@ -80,6 +81,8 @@ const Form = () => {
         <div className='mb-6 sm:mb-8 w-full flex justify-center'>
             <div className='w-full max-w-3xl'>
                 <form className='flex flex-col gap-4 w-full' onSubmit={handleSubmit(onSubmit)}>
+                    {/* Honeypot for spam bots: hidden from people and screen readers */}
+                    <input ref={honeypot} type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
                     {errors.name && <span className='text-red-500'>{errors.name.message}</span>}
                     <input type="text" className='w-full border p-3 rounded-md' placeholder={t.form.name} {...register("name")} />
                     {errors.email && <span className='text-red-500'>{errors.email.message}</span>}

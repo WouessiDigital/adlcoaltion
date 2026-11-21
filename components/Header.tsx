@@ -86,7 +86,7 @@ const Header: React.FC = () => {
             {/* MOBILE VIEW */}
             <div className='p-3 md:hidden'>
                 <div className='flex justify-between'>
-                    <Image src={Logo} alt='Logo' width={150} height={20} priority />
+                    <Image src={Logo} alt={t.meta.title} width={150} height={20} priority />
 
                     <div className='flex items-center gap-3'>
                     <LanguageSwitcher className='text-white' />
@@ -124,7 +124,7 @@ const Header: React.FC = () => {
                     aria-hidden={!menuOpen}
                 >
                     <div className='flex items-center justify-between mb-6'>
-                        <Image src={Logo} alt='Logo' width={120} height={32} />
+                        <Image src={Logo} alt={t.meta.title} width={120} height={32} />
                         <button
                             type='button'
                             aria-label={t.nav.closeMenu}
@@ -181,7 +181,7 @@ const Header: React.FC = () => {
 
                             {/* Logo - aligned with HomeCard left edge */}
                             <div className='shrink-0 self-end'>
-                                <Image src={Logo} alt='Logo' width={200} height={40} priority />
+                                <Image src={Logo} alt={t.meta.title} width={200} height={40} priority />
                             </div>
 
                             <nav className='hidden md:flex flex-1 justify-start ml-20'>

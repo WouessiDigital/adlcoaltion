@@ -11,10 +11,19 @@ async function getLocale(): Promise<Locale> {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const t = dictionaries[await getLocale()]
+  const locale = await getLocale()
+  const t = dictionaries[locale]
   return {
     title: t.meta.title,
     description: t.meta.description,
+    openGraph: {
+      title: t.meta.title,
+      description: t.meta.description,
+      siteName: t.meta.title,
+      locale: locale === 'fr' ? 'fr_CA' : 'en_CA',
+      alternateLocale: locale === 'fr' ? 'en_CA' : 'fr_CA',
+      type: 'website',
+    },
     alternates: { languages: { 'en-CA': '/?lang=en', 'fr-CA': '/?lang=fr' } },
   }
 }
