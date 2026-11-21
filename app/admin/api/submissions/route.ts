@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // POST /api/submissions
 export async function POST(req: Request) {
   try {
-    const { name, email, message } = await req.json();
+    const { name, email, message, locale } = await req.json();
 
     if (!name || !email || !message) {
       return NextResponse.json(
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       .emails.send({
         from: FROM_EMAIL,
         to: ADMIN_EMAIL,
-        subject: "You have a new submission on African Diaspora Leaders Coalition",
+        subject: `${locale === "fr" ? "[FR] " : ""}You have a new submission on African Diaspora Leaders Coalition`,
         html: emailHtml,
       })
       .then((resp) => console.log("Resend response:", resp))

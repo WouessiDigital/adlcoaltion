@@ -11,10 +11,12 @@ import { FaHome } from "react-icons/fa";
 import { FaInfo } from "react-icons/fa";
 import { MdPolicy } from "react-icons/md";
 import { LuSquareMenu } from "react-icons/lu";
+import { useI18n, LanguageSwitcher } from '../lib/i18n/LocaleProvider';
 
 
 const Header: React.FC = () => {
     const router = useRouter()
+    const { t } = useI18n()
     const [menuOpen, setMenuOpen] = useState(false)
     const [active, setActive] = useState<string>('home')
 
@@ -56,15 +58,9 @@ const Header: React.FC = () => {
     }
 
     const handleClose = (e?: React.MouseEvent) => {
-        // small debug output to verify the click fires
-        if (typeof window !== 'undefined') console.log('drawer: close clicked', e?.type)
         setMenuOpen(false)
     }
 
-    // debug: log menu state changes
-    useEffect(() => {
-        if (typeof window !== 'undefined') console.log('drawer: menuOpen ->', menuOpen)
-    }, [menuOpen])
 
     useEffect(() => {
         // lock scroll when menu is open
@@ -88,13 +84,15 @@ const Header: React.FC = () => {
         <div className='bg-[#16205B]'>
 
             {/* MOBILE VIEW */}
-            <div className='p-3 sm:hidden'>
+            <div className='p-3 md:hidden'>
                 <div className='flex justify-between'>
                     <Image src={Logo} alt='Logo' width={150} height={20} priority />
 
+                    <div className='flex items-center gap-3'>
+                    <LanguageSwitcher className='text-white' />
                     <button
                         type='button'
-                        aria-label='Open mobile menu'
+                        aria-label={t.nav.openMenu}
                         className={
                             'mr-4 inline-flex items-center justify-center   text-[#16205B] rounded relative ' +
                             (menuOpen ? 'pointer-events-none z-0' : 'pointer-events-auto z-60')
@@ -103,6 +101,7 @@ const Header: React.FC = () => {
                     >
                         <LuSquareMenu size={30} color='white' />
                     </button>
+                    </div>
                 </div>
             </div>
 
@@ -128,7 +127,7 @@ const Header: React.FC = () => {
                         <Image src={Logo} alt='Logo' width={120} height={32} />
                         <button
                             type='button'
-                            aria-label='Close menu'
+                            aria-label={t.nav.closeMenu}
                             onClickCapture={(e) => { e.stopPropagation(); handleClose(e as any); }}
                             onPointerDown={(e) => { e.stopPropagation(); handleClose(e as any); }}
                             className='text-gray-600 pointer-events-auto'
@@ -142,30 +141,30 @@ const Header: React.FC = () => {
                             <li>
                                 <button className={`text-[#16205B] ${active === 'home' ? 'font-bold underline' : 'font-light'}`} onClick={() => { scrollToSection('home'); setMenuOpen(false); }}>
                                     <FaHome size={25} color='#FF7300' className='inline-block mr-2' />
-                                    Home
+                                    {t.nav.home}
                                 </button>
                             </li>
                             <li>
                                 <button className={`text-[#16205B] ${active === 'about' ? 'font-bold underline' : 'font-light'}`} onClick={() => { scrollToSection('about'); setMenuOpen(false); }}>
                                     <FaInfo size={25} color='#FF7300' className='inline-block mr-2' />
-                                    About Us
+                                    {t.nav.about}
                                 </button>
                             </li>
                             <li>
                                 <button className={`text-[#16205B] ${active === 'policy' ? 'font-bold underline' : 'font-light'}`} onClick={() => { scrollToSection('policy'); setMenuOpen(false); }}>
                                     <MdPolicy size={25} color='#FF7300' className='inline-block mr-2' />
-                                    Policy Advocacy
+                                    {t.nav.policy}
                                 </button>
                             </li>
                             <li>
                                 <a href='/calendar' className='flex items-center gap-2 text-[#16205B] font-light' onClick={() => setMenuOpen(false)}>
                                     <CiCalendar size={30} color='#FF7300' />
-                                    Calendar
+                                    {t.nav.calendar}
                                 </a>
                             </li>
                             <li className='pt-4'>
                                 <button className='inline-block rounded-full  bg-[#FF7300] px-4 py-2 text-md text-white shadow-md transition-all hover:bg-[#facc15] hover:shadow-lg ml-2 font-bold' onClick={() => { scrollToSection('join'); setMenuOpen(false); }}>
-                                    Join Us
+                                    {t.nav.join}
                                 </button>
                             </li>
                         </ul>
@@ -188,19 +187,20 @@ const Header: React.FC = () => {
                             <nav className='hidden md:flex flex-1 justify-start ml-20'>
                                 <ul className='flex space-x-16'>
                                         <li>
-                                            <button onClick={() => scrollToSection('home')} className={`${active === 'home' ? 'text-white font-bold underline' : 'text-white font-extralight'} transition-all duration-200`}>Home</button>
+                                            <button onClick={() => scrollToSection('home')} className={`${active === 'home' ? 'text-white font-bold underline' : 'text-white font-extralight'} transition-all duration-200`}>{t.nav.home}</button>
                                         </li>
                                         <li>
-                                            <button onClick={() => scrollToSection('about')} className={`${active === 'about' ? 'text-white font-bold underline' : 'text-white font-extralight'} transition-all duration-200`}>About Us</button>
+                                            <button onClick={() => scrollToSection('about')} className={`${active === 'about' ? 'text-white font-bold underline' : 'text-white font-extralight'} transition-all duration-200`}>{t.nav.about}</button>
                                         </li>
                                         <li>
-                                            <button onClick={() => scrollToSection('policy')} className={`${active === 'policy' ? 'text-white font-bold underline' : 'text-white font-extralight'} transition-all duration-200`}>Policy Advocacy</button>
+                                            <button onClick={() => scrollToSection('policy')} className={`${active === 'policy' ? 'text-white font-bold underline' : 'text-white font-extralight'} transition-all duration-200`}>{t.nav.policy}</button>
                                         </li>
                                     </ul>
                             </nav>
 
                             <div className='flex items-center gap-3 '>
-                                <a href='/calendar'>
+                                <LanguageSwitcher className='text-white' />
+                                <a href='/calendar' aria-label={t.nav.calendar} title={t.nav.calendar}>
                                     <CiCalendar size={33} color='#FF7300' className='cursor-pointer hover:scale-110 transition-transform' />
                                 </a>
 
@@ -209,7 +209,7 @@ const Header: React.FC = () => {
                                     type='button'
                                     onClick={() => scrollToSection('join')}
                                 >
-                                    Join Us
+                                    {t.nav.join}
                                 </button>
                             </div>
 
