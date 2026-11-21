@@ -103,12 +103,12 @@ const fr: Dictionary = {
   meta: {
     title: 'Coalition des leaders de la diaspora africaine',
     description:
-      'Rassembler les voix africaines au Canada pour influencer les politiques, stimuler l’investissement et favoriser le développement durable en Afrique.',
+      'Rassembler les voix africaines au Canada pour contribuer à l’élaboration des politiques, stimuler l’investissement et favoriser le développement durable en Afrique.',
   },
   nav: {
     home: 'Accueil',
     about: 'À propos',
-    policy: 'Plaidoyer politique',
+    policy: 'Politiques publiques',
     calendar: 'Calendrier',
     join: 'Adhérer',
     openMenu: 'Ouvrir le menu',
@@ -119,56 +119,56 @@ const fr: Dictionary = {
   hero: {
     title: 'Faire progresser les relations Canada-Afrique grâce au leadership de la diaspora africaine',
     subtitle:
-      'Rassembler les voix africaines au Canada pour influencer les politiques, stimuler l’investissement et favoriser le développement durable en Afrique.',
+      'Rassembler les voix africaines au Canada pour contribuer à l’élaboration des politiques, stimuler l’investissement et favoriser le développement durable en Afrique.',
     becomeMember: 'Devenir membre',
     learnMore: 'En savoir plus',
   },
   about: {
     title: 'À propos de l’ADLC',
-    p1: 'La Coalition des leaders de la diaspora africaine (ADLC) est une alliance dynamique de professionnels d’ascendance africaine au Canada, notamment des investisseurs, des universitaires, des artistes, des athlètes et des dirigeants d’entreprise, engagés à faire avancer les affaires africaines par une collaboration stratégique avec le gouvernement du Canada et le secteur privé.',
-    p2: 'Nous sommes une plateforme qui amplifie le leadership de la diaspora, conçoit des politiques porteuses d’impact et ouvre des possibilités de croissance mutuelle entre le Canada et l’Afrique.',
+    p1: 'La Coalition des leaders de la diaspora africaine (ADLC) est une alliance dynamique de professionnels d’ascendance africaine établis au Canada : investisseurs, universitaires, artistes, athlètes et dirigeants d’entreprise. Ses membres s’engagent à faire progresser les enjeux africains grâce à une collaboration stratégique avec le gouvernement du Canada et le secteur privé.',
+    p2: 'Nous offrons une plateforme qui met en valeur le leadership de la diaspora, contribue à l’élaboration de politiques porteuses de changement et crée des possibilités de croissance mutuelle entre le Canada et l’Afrique.',
     imageAlt: 'Membres de l’ADLC réunis lors d’un événement de la coalition',
     missionTitle: 'Notre mission',
     mission:
-      'Réunir un réseau diversifié et intersectoriel de leaders de la diaspora africaine de partout au Canada, déterminés à mobiliser leur vécu, leur expertise professionnelle et leurs réseaux mondiaux, dans le respect mutuel et la dignité. Par une collaboration fondée sur des principes, nous visons à influencer la politique étrangère, à catalyser les occasions économiques et à cocréer des solutions qui favorisent l’équité, l’innovation et le progrès partagé entre le Canada et les nations africaines.',
+      'Réunir, partout au Canada, un réseau diversifié de leaders de la diaspora africaine issus de différents secteurs, déterminés à mettre à profit leur expérience, leur expertise professionnelle et leurs réseaux internationaux, dans un esprit de respect mutuel et de dignité. Grâce à une collaboration fondée sur des principes communs, nous cherchons à influencer la politique étrangère, à stimuler les possibilités économiques et à élaborer ensemble des solutions qui favorisent l’équité, l’innovation et un progrès commun entre le Canada et les pays africains.',
     visionTitle: 'Notre vision',
     vision:
-      'Être la plateforme de référence du leadership de la diaspora africaine au Canada, unie pour faire progresser des partenariats audacieux, équitables et durables qui redéfinissent et renforcent les relations Canada-Afrique au service d’une prospérité mutuelle.',
+      'Être la principale plateforme de leadership de la diaspora africaine au Canada, en rassemblant ses membres autour de partenariats audacieux, équitables et durables qui redéfinissent et renforcent les relations Canada-Afrique dans un esprit de prospérité mutuelle.',
   },
   policy: {
     whatWeDo: 'Ce que nous faisons',
-    policyAdvocacy: 'Plaidoyer politique',
+    policyAdvocacy: 'Plaidoyer en politiques publiques',
     policyText:
-      'Formuler des recommandations concrètes pour soutenir la coopération économique, diplomatique et de développement entre le Canada et l’Afrique.',
+      'Formuler des recommandations concrètes pour soutenir la coopération économique, diplomatique et en matière de développement entre le Canada et l’Afrique.',
     economic: 'Coopération économique',
     diaspora: 'Engagement de la diaspora',
     knowledge: 'Mobilisation des connaissances',
-    iconAlt: 'Icône du plaidoyer politique',
-    imageAlt: 'Plaidoyer politique',
+    iconAlt: 'Icône du plaidoyer en politiques publiques',
+    imageAlt: 'Plaidoyer en politiques publiques',
   },
   committee: {
-    title: 'Rencontrez le comité de direction intérimaire',
+    title: 'Découvrez le comité de direction intérimaire',
     intro:
-      'Découvrez notre réseau diversifié de leaders d’opinion qui façonnent l’avenir de l’Afrique : dirigeants d’entreprise, chercheurs, artistes et entrepreneurs.',
+      'Notre réseau diversifié réunit des personnalités influentes qui contribuent à façonner l’avenir de l’Afrique : dirigeants d’entreprise, chercheurs, artistes et entrepreneurs.',
     seeAll: 'Voir tous les membres',
     showLess: 'Voir moins',
   },
   join: {
     title: 'Joignez-vous au mouvement',
-    text: 'L’ADLC est un organisme sans but lucratif reconnu, voué à créer un nouveau cadre de diplomatie et de développement mené par la diaspora. Joignez-vous à notre alliance grandissante pour écrire le prochain chapitre des relations Afrique-Canada.',
-    newsletter: 'S’abonner à l’infolettre',
+    text: 'L’ADLC est un organisme sans but lucratif reconnu qui œuvre à établir un nouveau cadre de diplomatie et de développement porté par la diaspora. Joignez-vous à notre alliance grandissante pour écrire ensemble le prochain chapitre des relations Canada-Afrique.',
+    newsletter: 'Abonnez-vous à notre infolettre',
   },
   form: {
     name: 'Votre nom',
     email: 'Votre courriel',
     message: 'Votre message',
     submit: 'Devenir membre',
-    submitting: 'Envoi en cours...',
+    submitting: 'Envoi en cours…',
     success: 'Merci! Votre demande a bien été reçue.',
-    errEmail: 'Veuillez entrer une adresse courriel valide.',
-    errNameRequired: 'Veuillez entrer votre nom.',
-    errName: 'Veuillez entrer un nom complet valide.',
-    errMessage: 'Veuillez entrer un message.',
+    errEmail: 'Veuillez saisir une adresse courriel valide.',
+    errNameRequired: 'Veuillez saisir votre nom.',
+    errName: 'Veuillez saisir votre nom complet.',
+    errMessage: 'Veuillez saisir un message.',
     errGeneric: 'L’envoi a échoué. Veuillez réessayer.',
   },
   footer: {
@@ -176,7 +176,7 @@ const fr: Dictionary = {
     contact: 'Contact',
     blog: 'Blogue',
     resources: 'Ressources',
-    designedBy: 'Conçu par Wouessi Inc.',
+    designedBy: 'Site Web conçu par Wouessi Inc.',
     rights: '© 2026 Coalition des leaders de la diaspora africaine. Tous droits réservés.',
   },
   calendar: {
@@ -226,7 +226,7 @@ export const members: Member[] = [
     name: 'Minerva Saddler Gray',
     image: '/committee/MinervaGray.png',
     linkedin: 'https://www.linkedin.com/in/minervavsaddlergray/',
-    role: { en: 'Founder of Kuinua Consulting', fr: 'Fondatrice de Kuinua Consulting' },
+    role: { en: 'Founder of Kuinua Consulting', fr: 'Fondatrice, Kuinua Consulting' },
     hiddenOnMobile: false,
   },
   {
@@ -236,7 +236,7 @@ export const members: Member[] = [
     linkedin: 'https://www.linkedin.com/in/nerissa-allen/',
     role: {
       en: 'Co-Founder & President of Black Business Association of BC',
-      fr: 'Cofondatrice et présidente de la Black Business Association of BC',
+      fr: 'Cofondatrice et présidente, Black Business Association of BC',
     },
     hiddenOnMobile: false,
   },
@@ -261,7 +261,7 @@ export const members: Member[] = [
     name: 'Tapfuma Musewe',
     image: '/committee/TapfumaMusewe.png',
     linkedin: 'https://www.linkedin.com/in/tapfuma-musewe/',
-    role: { en: 'President of ESG Global Advisors', fr: 'Président d’ESG Global Advisors' },
+    role: { en: 'President of ESG Global Advisors', fr: 'Président, ESG Global Advisors' },
     hiddenOnMobile: true,
   },
   {
@@ -269,7 +269,7 @@ export const members: Member[] = [
     name: 'Sereine M. N.',
     image: '/committee/SereineMN.png',
     linkedin: 'https://www.linkedin.com/in/sereine-m-n-74236584/',
-    role: { en: 'Administrator at Desjardins', fr: 'Administratrice chez Desjardins' },
+    role: { en: 'Administrator at Desjardins', fr: 'Administratrice, Desjardins' },
     hiddenOnMobile: true,
   },
 ]
