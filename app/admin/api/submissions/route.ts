@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { headers } from 'next/headers'
-import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/security/requireAdmin'
 import { FROM_EMAIL, getResend } from "@/lib/resend";
 import { getNotificationEmailHtml } from "@/lib/notification-template";
 export const runtime = "nodejs";
@@ -12,10 +11,14 @@ const WINDOW_MS = 10 * 60 * 1000;
 const MAX_PER_WINDOW = 5;
 const hits = new Map<string, number[]>();
 
+// nginx overwrites X-Real-IP / X-Forwarded-For with the real visitor address ($remote_addr),
+// so visitors cannot fake these values. Port 3000 is bound to 127.0.0.1, so only nginx reaches the app.
 function clientIp(req: Request): string {
-  const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim();
-  return req.headers.get("x-real-ip") || "unknown";
+  return (
+    req.headers.get("x-real-ip") ||
+    (req.headers.get("x-forwarded-for") || "").split(",").pop()?.trim() ||
+    "unknown"
+  );
 }
 
 function rateLimited(ip: string): boolean {
@@ -23,7 +26,12 @@ function rateLimited(ip: string): boolean {
   const recent = (hits.get(ip) || []).filter((t) => now - t < WINDOW_MS);
   recent.push(now);
   hits.set(ip, recent);
-  if (hits.size > 5000) hits.clear(); // keep memory bounded
+  // Keep memory bounded by evicting only expired entries (never reset everyone's counters).
+  if (hits.size > 5000) {
+    for (const [key, times] of hits) {
+      if (times.every((t) => now - t >= WINDOW_MS)) hits.delete(key);
+    }
+  }
   return recent.length > MAX_PER_WINDOW;
 }
 
@@ -43,8 +51,14 @@ const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/;
 // POST /api/submissions
 export async function POST(req: Request) {
   try {
+    if (!(req.headers.get("content-type") || "").includes("application/json")) {
+      return NextResponse.json({ error: "Invalid request", code: "BAD_REQUEST" }, { status: 415 });
+    }
+    if (Number(req.headers.get("content-length") || 0) > 10_000) {
+      return NextResponse.json({ error: "Request too large", code: "BAD_REQUEST" }, { status: 413 });
+    }
     if (rateLimited(clientIp(req))) {
-      return NextResponse.json({ error: "Too many submissions. Please try again later." }, { status: 429 });
+      return NextResponse.json({ error: "Too many submissions. Please try again later.", code: "RATE_LIMITED" }, { status: 429 });
     }
 
     const body = await req.json().catch(() => null);
@@ -86,7 +100,12 @@ export async function POST(req: Request) {
     const base = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
     const loginUrl = `${base.replace(/\/$/, "")}/admin/dashboard`;
     const emailHtml = getNotificationEmailHtml(esc(name), esc(email), esc(message).replace(/\n/g, "<br>"), loginUrl);
-    const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "ishoyy.a@gmail.com";
+    // No fallback address: member data must only go to an ADLC-controlled inbox set in ADMIN_EMAIL.
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+    if (!ADMIN_EMAIL) {
+      console.error("ADMIN_EMAIL is not configured: submission saved, notification email NOT sent.");
+      return NextResponse.json({ success: true });
+    }
     // Send in the background so slow email delivery doesn't block the response.
     getResend()
       .emails.send({
@@ -104,25 +123,19 @@ export async function POST(req: Request) {
   }
 }
 
-// GET /api/submissions
+// GET /api/submissions (admins only: session + ADMIN_EMAILS allowlist, fails closed)
 export async function GET() {
-  // protect submission listing: only allow authenticated sessions
-  try {
-    const session = await auth.api.getSession({ headers: await headers() })
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    
-  } catch (err) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await requireAdmin();
+  if (!session) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: { "Cache-Control": "no-store" } });
   }
 
   const { getDb } = await import("@/lib/data/db");
   const db = getDb();
   const stmt = db.prepare(`
-    SELECT * FROM members
+    SELECT id, name, email, message, datecreated FROM members
     ORDER BY datecreated DESC
   `);
 
-  return NextResponse.json(stmt.all());
+  return NextResponse.json(stmt.all(), { headers: { "Cache-Control": "no-store" } });
 }

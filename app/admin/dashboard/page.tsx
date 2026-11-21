@@ -7,6 +7,7 @@ import Link from 'next/link'
 import SignOutButton from '@/components/admin/SignOutButton'
 import { auth } from '@/lib/auth'
 import { headers } from 'next/headers'
+import { requireAdmin } from '@/lib/security/requireAdmin'
 
 type Member = {
     id: number
@@ -18,13 +19,9 @@ type Member = {
 export const dynamic = 'force-dynamic'
 
 export default async function Page() {
-    // Server-side session check FIRST, before any member data is read.
-    const session = await auth.api.getSession({ headers: await headers() })
+    // Authorization FIRST (session + ADMIN_EMAILS allowlist, fails closed), before any member data is read.
+    const session = await requireAdmin()
     if (!session) redirect('/admin/login')
-
-    // Optional allowlist: ADMIN_EMAILS="a@x.org,b@y.org". When set, only these accounts see member data.
-    const allowed = (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)
-    if (allowed.length && !allowed.includes(String(session.user?.email || '').toLowerCase())) redirect('/admin/login')
 
     const db = getDb()
     const stmt = db.prepare('SELECT id, name, email, message, datecreated FROM members ORDER BY id DESC')

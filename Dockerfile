@@ -18,6 +18,8 @@ RUN mkdir -p /data && chown -R node:node /data
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
+# Never ship local env files in the final image; runtime settings come from --env-file.
+RUN rm -f .env .env.* || true
 USER node
 EXPOSE 3000
 VOLUME ["/data"]

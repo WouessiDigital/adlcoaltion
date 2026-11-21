@@ -1,5 +1,6 @@
 'use client'
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { dictionaries, isLocale, LOCALE_COOKIE, type Dictionary, type Locale } from './dictionaries'
 
 type I18nContext = {
@@ -11,7 +12,8 @@ type I18nContext = {
 const Ctx = createContext<I18nContext | null>(null)
 
 function writeCookie(locale: Locale) {
-  document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax`
+  const secure = window.location.protocol === 'https:' ? '; secure' : ''
+  document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax${secure}`
 }
 
 function hasCookie(): boolean {
@@ -26,19 +28,24 @@ export function LocaleProvider({
   children: React.ReactNode
 }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale)
+  const router = useRouter()
 
   const setLocale = useCallback((next: Locale) => {
     writeCookie(next)
     setLocaleState(next)
-  }, [])
+    // Drop a stale ?lang= from the address bar so refresh/share keeps the chosen language,
+    // then refresh server-rendered parts (page title, description, social preview tags).
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('lang')) {
+      url.searchParams.delete('lang')
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+    }
+    router.refresh()
+  }, [router])
 
   // First visit: honour ?lang=fr|en (shareable links), otherwise the browser language.
   useEffect(() => {
-    const param = new URLSearchParams(window.location.search).get('lang')
-    if (isLocale(param)) {
-      setLocale(param)
-      return
-    }
+    // The server (middleware) already applied ?lang= and the browser language on first load.
     if (!hasCookie()) {
       const browser = (navigator.language || '').toLowerCase().startsWith('fr') ? 'fr' : 'en'
       setLocale(browser)

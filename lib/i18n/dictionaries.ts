@@ -82,6 +82,9 @@ const en = {
     errName: 'Please enter a valid full name.',
     errMessage: 'Please enter a message.',
     errGeneric: 'Submission failed. Please try again.',
+    errRate: 'Too many attempts. Please wait a few minutes and try again.',
+    privacy:
+      'We use this information only to respond to your membership request. It is accessible to ADLC administrators and is not shared for marketing purposes.',
   },
   footer: {
     about: 'About',
@@ -170,6 +173,9 @@ const fr: Dictionary = {
     errName: 'Veuillez saisir votre nom complet.',
     errMessage: 'Veuillez saisir un message.',
     errGeneric: 'L’envoi a échoué. Veuillez réessayer.',
+    errRate: 'Trop de tentatives. Veuillez patienter quelques minutes, puis réessayer.',
+    privacy:
+      'Nous utilisons ces renseignements uniquement pour répondre à votre demande d’adhésion. Ils sont accessibles aux administrateurs de l’ADLC et ne sont pas communiqués à des fins de marketing.',
   },
   footer: {
     about: 'À propos',

@@ -58,7 +58,7 @@ const Form = () => {
             const result = await res.json().catch(() => ({}));
 
             if (!res.ok) {
-                throw new Error(result?.error || t.form.errGeneric);
+                throw new Error(res.status === 429 || result?.code === "RATE_LIMITED" ? t.form.errRate : t.form.errGeneric);
             }
 
             reset();
@@ -71,7 +71,7 @@ const Form = () => {
             setSuccess(null);
             setError("root", {
                 type: "manual",
-                message: t.form.errGeneric,
+                message: error?.message || t.form.errGeneric,
             });
         }
     };
@@ -97,7 +97,8 @@ const Form = () => {
                         )}
                         <button type="submit" className="rounded-full bg-[#FF7300] px-4 py-4 sm:w-40 sm:w-70 text-md sm:text-2xl text-white font-semibold shadow-md transition-all duration-300 hover:bg-[#facc15] hover:shadow-lg active:scale-95" disabled={isSubmitting}>{isSubmitting ? t.form.submitting : t.form.submit}</button>
                     </div>
-                    {errors.root && <span className='text-red-500'>{errors.root.message}</span>}
+                    {errors.root && <span className='text-red-500' role='alert'>{errors.root.message}</span>}
+                    <p className='text-xs text-gray-500 text-center'>{t.form.privacy}</p>
                 </form>
             </div>
         </div>

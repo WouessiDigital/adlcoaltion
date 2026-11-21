@@ -18,7 +18,8 @@ export function middleware(req: NextRequest) {
   const others = (req.headers.get('cookie') || '').split('; ').filter((c) => c && !c.startsWith(`${COOKIE}=`))
   headers.set('cookie', [...others, `${COOKIE}=${locale}`].join('; '))
   const res = NextResponse.next({ request: { headers } })
-  res.cookies.set(COOKIE, locale, { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' })
+  const secure = req.headers.get('x-forwarded-proto') === 'https'
+  res.cookies.set(COOKIE, locale, { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax', secure })
   return res
 }
 

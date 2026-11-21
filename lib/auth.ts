@@ -1,14 +1,12 @@
 import { betterAuth } from "better-auth";
 import Database from "better-sqlite3";
 import { nextCookies } from "better-auth/next-js";
-import { Resend } from "resend";
 import path from "path";
 import fs from "fs";
 import BetterSqlite3 from "better-sqlite3";
 import { FROM_EMAIL, getResend } from "./resend";
 import { getResetPasswordEmailHtml } from "./email-template";
 
-const resend = new Resend(process.env.RESEND_API_KEY!);
 
 let dbInstance: InstanceType<typeof BetterSqlite3> | null = null;
 
@@ -44,12 +42,8 @@ function createAuth() {
     );
   } else {
     // FIX: Trust variations of your production domain to survive cross-origin reverse proxies
-   trustedOrigins.push(
-  "https://adlcoalition.org",
-  "https://www.adlcoalition.org",
-  "http://adlcoalition.org",
-  "http://www.adlcoalition.org"
-);
+    // HTTPS only in production (http:// origins removed).
+    trustedOrigins.push("https://adlcoalition.org", "https://www.adlcoalition.org");
   }
 
   return betterAuth({
@@ -62,10 +56,11 @@ function createAuth() {
       // FIX: Ensure proxy forwarding header checks are trusted behind Coolify (Nixpacks/Docker)
       useSecureCookies: process.env.NODE_ENV === "production",
       cookiePrefix: "adlc",
+      // Session cookie stays on the exact host; no cross-site credential sharing.
       crossSubDomainCookies: {
-        enabled: true, // Switched to true if client accesses both www. and root domain apexes
+        enabled: false,
       },
-      allowCredentialsOnCrossOrigin: true,
+      allowCredentialsOnCrossOrigin: false,
     },
     // Brute-force protection on sign-in, sign-up and password reset.
     rateLimit: { enabled: true, window: 60, max: 10 },
@@ -80,12 +75,13 @@ function createAuth() {
         const clientLink = `${appBase}/admin/reset-password?token=${encodeURIComponent(token)}`;
         try {
           const emailHtml = getResetPasswordEmailHtml(user.email, clientLink);
-          const { data, error } = await getResend().emails.send({
+          const { error } = await getResend().emails.send({
             from: FROM_EMAIL,
             to: user.email,
             subject: "Password Reset Request",
             html: emailHtml,
           });
+          if (error) throw new Error("Password reset email delivery failed");
         } catch (error) {
           throw new Error("Failed to send reset password email");
         }
