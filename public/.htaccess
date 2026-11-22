@@ -1,0 +1,39 @@
+# adlcoalition.org on NameHero (Apache/LiteSpeed). Static site + small PHP form/admin.
+Options -Indexes
+DirectoryIndex index.html index.php
+ErrorDocument 404 /404.html
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+# Force HTTPS
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# Old ?lang=fr links go to the French pages
+RewriteCond %{QUERY_STRING} (^|&)lang=fr(&|$)
+RewriteRule ^$ /fr/? [L,R=301]
+RewriteCond %{QUERY_STRING} (^|&)lang=en(&|$)
+RewriteRule ^$ /en/? [L,R=301]
+# Old /calendar link
+RewriteRule ^calendar/?$ /en/calendar/ [L,R=301]
+</IfModule>
+
+# Never serve hidden files, sources, backups or databases
+<FilesMatch "(^\.|\.(sql|sqlite|db|md|log|bak|ini|sh|lock|json)$)">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-src https://calendar.google.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+  <FilesMatch "\.(js|css|woff2?|png|jpe?g|svg|ico|webp)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
