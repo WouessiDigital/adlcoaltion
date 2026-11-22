@@ -55,7 +55,7 @@ function adlc_config(): array {
     ];
 }
 
-const ADLC_SCHEMA_VERSION = 2;
+const ADLC_SCHEMA_VERSION = 3;
 
 function adlc_db(): PDO {
     static $pdo = null;
@@ -100,6 +100,10 @@ function adlc_migrate(PDO $pdo, bool $sqlite, int $from): void {
         $cols = $sqlite ? array_column($pdo->query('PRAGMA table_info(admins)')->fetchAll(), 'name') : [];
         if ($sqlite && !in_array('session_version', $cols, true)) {
             $pdo->exec('ALTER TABLE admins ADD COLUMN session_version INTEGER NOT NULL DEFAULT 1');
+        }
+        // v2 -> v3: two-step login (authenticator app) and one-time recovery codes.
+        foreach (['totp_secret' => 'TEXT', 'totp_last_step' => 'INTEGER NOT NULL DEFAULT 0', 'recovery_codes' => 'TEXT'] as $col => $type) {
+            if ($sqlite && !in_array($col, $cols, true)) $pdo->exec("ALTER TABLE admins ADD COLUMN $col $type");
         }
         if ($sqlite) {
             $pdo->exec('PRAGMA user_version = ' . ADLC_SCHEMA_VERSION);
@@ -163,6 +167,37 @@ function e(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES 
 
 /** Strip CR/LF so values can never inject mail headers. */
 function adlc_oneline(string $s): string { return trim(preg_replace('/[\r\n\t]+/', ' ', $s)); }
+
+// ---- Two-step login: time-based one-time codes (RFC 6238, 30 s, 6 digits, SHA-1), as used by authenticator apps ----
+function adlc_b32_encode(string $bin): string {
+    $alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; $bits = ''; $out = '';
+    foreach (str_split($bin) as $c) $bits .= str_pad(decbin(ord($c)), 8, '0', STR_PAD_LEFT);
+    foreach (str_split($bits, 5) as $chunk) $out .= $alpha[bindec(str_pad($chunk, 5, '0'))];
+    return $out;
+}
+function adlc_b32_decode(string $b32): string {
+    $alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; $bits = ''; $out = '';
+    foreach (str_split(strtoupper(preg_replace('/[^A-Za-z2-7]/', '', $b32))) as $c) $bits .= str_pad(decbin(strpos($alpha, $c)), 5, '0', STR_PAD_LEFT);
+    foreach (str_split($bits, 8) as $byte) if (strlen($byte) === 8) $out .= chr(bindec($byte));
+    return $out;
+}
+function adlc_totp_new_secret(): string { return adlc_b32_encode(random_bytes(20)); }
+function adlc_totp_at(string $secret, int $step): string {
+    $h = hash_hmac('sha1', pack('J', $step), adlc_b32_decode($secret), true);
+    $o = ord($h[19]) & 0x0f;
+    $n = ((ord($h[$o]) & 0x7f) << 24) | (ord($h[$o + 1]) << 16) | (ord($h[$o + 2]) << 8) | ord($h[$o + 3]);
+    return str_pad((string)($n % 1000000), 6, '0', STR_PAD_LEFT);
+}
+/** Returns the matching time step (current, previous or next 30 s window) or 0. Steps <= $lastStep are refused (no replay). */
+function adlc_totp_verify(string $secret, string $code, int $lastStep = 0): int {
+    $code = preg_replace('/\D/', '', $code);
+    if (strlen($code) !== 6) return 0;
+    $now = intdiv(time(), 30);
+    foreach ([$now, $now - 1, $now + 1] as $step) {
+        if ($step > $lastStep && hash_equals(adlc_totp_at($secret, $step), $code)) return $step;
+    }
+    return 0;
+}
 
 /** scheme://host[:port] in canonical form, or '' if the URL is not http(s). */
 function adlc_origin_of(string $url): string {

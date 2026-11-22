@@ -53,15 +53,28 @@ function check_csrf(): void {
     if (!hash_equals($_SESSION['csrf'] ?? '', (string)($_POST['csrf'] ?? ''))) { http_response_code(403); exit('Invalid request. Reload the page and try again.'); }
 }
 
-// ---- Login ----
+// ---- Login: step 1 password, step 2 authenticator code (first time: set up the app) ----
 if (!$me) {
     $err = '';
+    $pending = $_SESSION['pending'] ?? null;          // ['email', 'sv', 'at'] after a correct password
+    if ($pending && time() - $pending['at'] > 300) { unset($_SESSION['pending'], $_SESSION['enroll']); $pending = null; $err = 'That took too long. Please sign in again.'; }
+
+    $finishLogin = function (string $em, int $sv) use ($db): never {
+        session_regenerate_id(true);
+        unset($_SESSION['pending'], $_SESSION['enroll'], $_SESSION['show_codes']);
+        $_SESSION['admin'] = $em; $_SESSION['sv'] = $sv;
+        $_SESSION['seen'] = time(); $_SESSION['csrf'] = bin2hex(random_bytes(32));
+        adlc_clear_rate('login'); adlc_clear_rate('login_acct', hash('sha256', 'acct|' . $em)); adlc_clear_rate('totp_acct', hash('sha256', 'totp|' . $em));
+        adlc_audit($em, 'login');
+        header('Location: ./'); exit;
+    };
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'cancel') { check_csrf(); unset($_SESSION['pending'], $_SESSION['enroll']); header('Location: ./'); exit; }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'login') {
         check_csrf();
         $em = strtolower(trim((string)($_POST['email'] ?? '')));
         $acct = hash('sha256', 'acct|' . $em);
-        // Two limits: 5 tries per 15 min from one address, and 10 per 15 min against one account
-        // from anywhere (slows attacks spread over many addresses).
         // Both counters are always updated (no short-circuit), then combined.
         $ipLimited = adlc_rate_limited('login', 5, 900);
         $acctLimited = adlc_rate_limited('login_acct', 10, 900, $acct);
@@ -76,15 +89,110 @@ if (!$me) {
             $ok = password_verify((string)($_POST['password'] ?? ''), $hash ?: '$2y$10$eJ9jg4L1Li.VAGEtmJaW5.l9etQGcB2bPWOmAs0fvAwZgU2u1FYee');
             if ($ok && $hash) {
                 session_regenerate_id(true);
-                $_SESSION['admin'] = $em; $_SESSION['sv'] = (int)$row['session_version'];
-                $_SESSION['seen'] = time(); $_SESSION['csrf'] = bin2hex(random_bytes(32));
-                adlc_clear_rate('login'); adlc_clear_rate('login_acct', $acct); adlc_audit($em, 'login');
+                $_SESSION['pending'] = ['email' => $em, 'sv' => (int)$row['session_version'], 'at' => time()];
+                adlc_audit($em, 'password_ok');
                 header('Location: ./'); exit;
             }
             adlc_audit($em ?: '(blank)', 'login_failed');
             $err = 'Wrong email or password.';
         }
     }
+
+    if ($pending) {
+        $q = $db->prepare('SELECT totp_secret, totp_last_step, recovery_codes, session_version FROM admins WHERE email = ?'); $q->execute([$pending['email']]);
+        $adm = $q->fetch();
+        if (!$adm || (int)$adm['session_version'] !== $pending['sv']) { unset($_SESSION['pending'], $_SESSION['enroll']); header('Location: ./'); exit; }
+        $tkey = hash('sha256', 'totp|' . $pending['email']);
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['totp', 'enroll'], true)) {
+            check_csrf();
+            $ipL = adlc_rate_limited('totp', 10, 900);
+            $acL = adlc_rate_limited('totp_acct', 5, 900, $tkey);
+            $code = (string)($_POST['code'] ?? '');
+            if ($ipL || $acL) {
+                adlc_audit($pending['email'], 'totp_blocked'); $err = 'Too many attempts. Wait 15 minutes and sign in again.';
+                unset($_SESSION['pending'], $_SESSION['enroll']); $pending = null;
+            } elseif ($action === 'enroll' && empty($adm['totp_secret']) && !empty($_SESSION['enroll'])) {
+                $step = adlc_totp_verify($_SESSION['enroll'], $code);
+                if ($step) {
+                    $codes = []; for ($i = 0; $i < 8; $i++) $codes[] = strtoupper(implode('-', str_split(bin2hex(random_bytes(5)), 5)));
+                    $db->prepare('UPDATE admins SET totp_secret = ?, totp_last_step = ?, recovery_codes = ? WHERE email = ?')
+                       ->execute([$_SESSION['enroll'], $step, json_encode(array_map(fn($c) => password_hash($c, PASSWORD_DEFAULT), $codes)), $pending['email']]);
+                    adlc_audit($pending['email'], 'totp_enrolled');
+                    $_SESSION['show_codes'] = $codes; unset($_SESSION['enroll']);
+                    page_head('Save your recovery codes'); ?>
+                    <main class="card narrow">
+                      <h1>Two-step login is on</h1>
+                      <p>Save these 8 recovery codes somewhere safe (a password manager, or printed). Each works once, if you lose your phone. They will not be shown again.</p>
+                      <pre class="codes"><?= e(implode("\n", $codes)) ?></pre>
+                      <form method="post"><input type="hidden" name="csrf" value="<?= e($csrf) ?>"><button name="action" value="codes_saved">I saved them: continue</button></form>
+                    </main>
+                    <?php page_foot(); exit;
+                }
+                adlc_audit($pending['email'], 'totp_enroll_failed'); $err = 'That code did not match. Check the time on your phone and try the newest code.';
+            } elseif ($action === 'totp' && !empty($adm['totp_secret'])) {
+                $step = adlc_totp_verify($adm['totp_secret'], $code, (int)$adm['totp_last_step']);
+                if ($step) {
+                    $db->prepare('UPDATE admins SET totp_last_step = ? WHERE email = ?')->execute([$step, $pending['email']]);
+                    $finishLogin($pending['email'], $pending['sv']);
+                }
+                // Recovery code (one-time)
+                $rc = strtoupper(trim($code)); $list = json_decode((string)$adm['recovery_codes'], true) ?: [];
+                foreach ($list as $i => $h) {
+                    if (strlen($rc) >= 11 && password_verify($rc, $h)) {
+                        unset($list[$i]);
+                        $db->prepare('UPDATE admins SET recovery_codes = ? WHERE email = ?')->execute([json_encode(array_values($list)), $pending['email']]);
+                        adlc_audit($pending['email'], 'recovery_code_used', count($list) . ' left');
+                        $finishLogin($pending['email'], $pending['sv']);
+                    }
+                }
+                adlc_audit($pending['email'], 'totp_failed'); $err = 'That code did not match. Try the newest code from your app.';
+            }
+        }
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'codes_saved' && !empty($_SESSION['show_codes'])) {
+            check_csrf(); $finishLogin($pending['email'], $pending['sv']);
+        }
+    }
+
+    if ($pending && empty($adm['totp_secret'])) {
+        // First sign-in: set up the authenticator app.
+        $_SESSION['enroll'] ??= adlc_totp_new_secret();
+        $sec = $_SESSION['enroll'];
+        $uri = 'otpauth://totp/' . rawurlencode('ADLC Admin:' . $pending['email']) . '?secret=' . $sec . '&issuer=' . rawurlencode('ADLC Admin');
+        page_head('Set up two-step login'); ?>
+        <main class="card narrow">
+          <h1>Set up two-step login</h1>
+          <?php if ($err): ?><p class="err"><?= e($err) ?></p><?php endif; ?>
+          <p>1. Open Microsoft Authenticator, Google Authenticator or a similar app and add an account by entering this setup key (time-based):</p>
+          <p class="key"><?= e(implode(' ', str_split($sec, 4))) ?></p>
+          <p class="small">Account name: ADLC Admin (<?= e($pending['email']) ?>). On this phone? <a href="<?= e($uri) ?>">Open in the authenticator app</a>.</p>
+          <p>2. Enter the 6-digit code the app shows:</p>
+          <form method="post" autocomplete="off">
+            <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+            <label>Code<input name="code" inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" required autofocus></label>
+            <button name="action" value="enroll">Turn on two-step login</button>
+          </form>
+          <form method="post"><input type="hidden" name="csrf" value="<?= e($csrf) ?>"><button name="action" value="cancel" class="link">Cancel</button></form>
+        </main>
+        <?php page_foot(); exit;
+    }
+    if ($pending) {
+        page_head('ADLC Admin: code'); ?>
+        <main class="card narrow">
+          <img src="/LOGO.png" alt="ADLC" class="logo">
+          <h1>Enter your code</h1>
+          <?php if ($err): ?><p class="err"><?= e($err) ?></p><?php endif; ?>
+          <p>Open your authenticator app and enter the 6-digit code for ADLC Admin. Lost your phone? Enter one of your recovery codes instead.</p>
+          <form method="post" autocomplete="off">
+            <input type="hidden" name="csrf" value="<?= e($csrf) ?>">
+            <label>Code<input name="code" inputmode="text" maxlength="20" required autofocus></label>
+            <button name="action" value="totp">Verify</button>
+          </form>
+          <form method="post"><input type="hidden" name="csrf" value="<?= e($csrf) ?>"><button name="action" value="cancel" class="link">Cancel</button></form>
+        </main>
+        <?php page_foot(); exit;
+    }
+
     page_head('ADLC Admin: sign in'); ?>
     <main class="card narrow">
       <img src="/LOGO.png" alt="ADLC" class="logo">
@@ -229,7 +337,7 @@ button:hover{background:var(--y);color:var(--ink)}.ghost{background:transparent;
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px}h2{margin:0;font-size:18px}.meta{color:#6b7280;font-size:13px}.msg{white-space:normal;line-height:1.5}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row select{width:auto}.row input{flex:1;min-width:160px;margin:0}
 .pill{font-size:12px;padding:3px 10px;border-radius:999px;background:#e5e7eb}.pill.new{background:#fef3c7}.pill.approved{background:#dcfce7}.pill.declined{background:#fee2e2}
-.cancel{padding:10px 18px;color:var(--ink)}.err{color:#b91c1c}.flash{background:#ecfdf5;border:1px solid #10b981;padding:10px;border-radius:8px}
+.cancel{padding:10px 18px;color:var(--ink)}.link{background:none;color:#6b7280;padding:6px;font-weight:400}.key{font:600 20px/1.4 ui-monospace,Menlo,monospace;letter-spacing:1px;background:#f3f4f6;padding:12px;border-radius:8px;word-break:break-all}.codes{font:600 16px/1.8 ui-monospace,Menlo,monospace;background:#f3f4f6;padding:12px;border-radius:8px;text-align:center}.small{font-size:13px;color:#6b7280}.err{color:#b91c1c}.flash{background:#ecfdf5;border:1px solid #10b981;padding:10px;border-radius:8px}
 </style></head><body>
 <?php }
 function page_foot(): void { echo '<script src="/admin/admin.js"></script></body></html>'; }
