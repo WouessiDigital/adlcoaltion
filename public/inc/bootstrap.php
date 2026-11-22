@@ -3,9 +3,21 @@
 declare(strict_types=1);
 if (!defined('ADLC')) { http_response_code(404); exit; }
 
-// Private folder OUTSIDE the web root: /home/<cpanel-user>/adlc-private
-// (this file lives in <docroot>/inc/, and the docroot sits directly in the cPanel home folder).
-define('ADLC_PRIVATE', getenv('ADLC_PRIVATE') ?: dirname(__DIR__, 2) . '/adlc-private');
+// Private folder OUTSIDE the web root: /home/<cpanel-user>/adlc-private.
+// On cPanel, PHP runs as the account user, so the user's home folder is the safe anchor.
+function adlc_private_dir(): string {
+    if ($env = getenv('ADLC_PRIVATE')) return $env;
+    $home = function_exists('posix_getpwuid') ? (posix_getpwuid(posix_geteuid())['dir'] ?? '') : '';
+    if ($home === '' || !is_dir($home)) $home = getenv('HOME') ?: dirname(__DIR__, 2);
+    $dir = rtrim($home, '/') . '/adlc-private';
+    // Fail closed if that would ever land inside the public website folder.
+    $docroot = realpath($_SERVER['DOCUMENT_ROOT'] ?? '') ?: '';
+    if ($docroot !== '' && str_starts_with($dir . '/', rtrim($docroot, '/') . '/')) {
+        http_response_code(500); error_log('ADLC: private folder would be public, refusing'); exit;
+    }
+    return $dir;
+}
+define('ADLC_PRIVATE', adlc_private_dir());
 
 function adlc_config(): array {
     static $cfg = null;
@@ -29,6 +41,7 @@ function adlc_db(): PDO {
     $c = adlc_config();
     if (str_starts_with($c['db_dsn'], 'sqlite:') && !is_dir(ADLC_PRIVATE)) {
         mkdir(ADLC_PRIVATE, 0700, true);
+        file_put_contents(ADLC_PRIVATE . '/.htaccess', "Require all denied\n");
     }
     $pdo = new PDO($c['db_dsn'], $c['db_user'], $c['db_pass'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
