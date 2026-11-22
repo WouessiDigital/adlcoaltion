@@ -10,7 +10,6 @@
 
 # testing
 /coverage
-
 # next.js
 /.next/
 /out/
@@ -18,47 +17,36 @@ sqlite.db
 members.db
 # production
 /build
-
 # misc
 .DS_Store
 *.pem
-
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-
 # env files (STOPS git from uploading your secrets)
 .env
 .env*
 .env.local
 .env.production
-
 # vercel
 .vercel
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
 # database
 /data
 *.db
 *.db-journal
-
-
 /better-auth-migrations/
-
 # Session / secret files
 *.session.sql
-
 # OS / editor
 Thumbs.db
-
 # new
-sqlite.db
-members.db
 # NameHero upload package
 adlc-namehero.zip
 csp-expected.txt
+upload/
+ADLC-NameHero-AI-Review-Pack*.md
