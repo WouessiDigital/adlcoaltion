@@ -1,12 +1,13 @@
 'use client'
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { dictionaries, isLocale, LOCALE_COOKIE, type Dictionary, type Locale } from './dictionaries'
+import React, { createContext, useCallback, useContext, useEffect } from 'react'
+import { dictionaries, LOCALE_COOKIE, type Dictionary, type Locale } from './dictionaries'
 
 type I18nContext = {
   locale: Locale
   t: Dictionary
   setLocale: (locale: Locale) => void
+  /** Path inside the current language, e.g. href('/calendar/') -> '/fr/calendar/' */
+  href: (path: string) => string
 }
 
 const Ctx = createContext<I18nContext | null>(null)
@@ -16,49 +17,30 @@ function writeCookie(locale: Locale) {
   document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax${secure}`
 }
 
-function hasCookie(): boolean {
-  return document.cookie.split('; ').some((c) => c.startsWith(`${LOCALE_COOKIE}=`))
-}
+// Static site: each language is its own set of pages (/en/... and /fr/...).
+// Switching language opens the same page in the other language and remembers the choice.
+export function LocaleProvider({ initialLocale, children }: { initialLocale: Locale; children: React.ReactNode }) {
+  const locale = initialLocale
 
-export function LocaleProvider({
-  initialLocale,
-  children,
-}: {
-  initialLocale: Locale
-  children: React.ReactNode
-}) {
-  const [locale, setLocaleState] = useState<Locale>(initialLocale)
-  const router = useRouter()
+  const href = useCallback((path: string) => `/${locale}${path.startsWith('/') ? path : `/${path}`}`, [locale])
 
-  const setLocale = useCallback((next: Locale) => {
-    writeCookie(next)
-    setLocaleState(next)
-    // Drop a stale ?lang= from the address bar so refresh/share keeps the chosen language,
-    // then refresh server-rendered parts (page title, description, social preview tags).
-    const url = new URL(window.location.href)
-    if (url.searchParams.has('lang')) {
-      url.searchParams.delete('lang')
-      window.history.replaceState(null, '', url.pathname + url.search + url.hash)
-    }
-    router.refresh()
-  }, [router])
+  const setLocale = useCallback(
+    (next: Locale) => {
+      if (next === locale) return
+      writeCookie(next)
+      const { pathname, hash } = window.location
+      const rest = pathname.replace(/^\/(en|fr)(?=\/|$)/, '') || '/'
+      window.location.assign(`/${next}${rest.startsWith('/') ? rest : `/${rest}`}${hash}`)
+    },
+    [locale]
+  )
 
-  // First visit: honour ?lang=fr|en (shareable links), otherwise the browser language.
+  // Remember the language of the pages being read, for the next visit to the root address.
   useEffect(() => {
-    // The server (middleware) already applied ?lang= and the browser language on first load.
-    if (!hasCookie()) {
-      const browser = (navigator.language || '').toLowerCase().startsWith('fr') ? 'fr' : 'en'
-      setLocale(browser)
-    }
-  }, [setLocale])
-
-  // Keep <html lang> and the tab title in step with the chosen language.
-  useEffect(() => {
-    document.documentElement.lang = locale === 'fr' ? 'fr-CA' : 'en-CA'
-    document.title = dictionaries[locale].meta.title
+    writeCookie(locale)
   }, [locale])
 
-  return <Ctx.Provider value={{ locale, t: dictionaries[locale], setLocale }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ locale, t: dictionaries[locale], setLocale, href }}>{children}</Ctx.Provider>
 }
 
 export function useI18n(): I18nContext {

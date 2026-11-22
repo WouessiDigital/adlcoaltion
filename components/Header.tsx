@@ -16,7 +16,8 @@ import { useI18n, LanguageSwitcher } from '../lib/i18n/LocaleProvider';
 
 const Header: React.FC = () => {
     const router = useRouter()
-    const { t } = useI18n()
+    const { t, href } = useI18n()
+    const isHome = () => /^\/(en|fr)\/?$/.test(window.location.pathname)
     const [menuOpen, setMenuOpen] = useState(false)
     const [active, setActive] = useState<string>('home')
 
@@ -25,14 +26,14 @@ const Header: React.FC = () => {
         // If targeting the top of the page, scroll to window top instead of an element
         if (id === 'home') {
             // If already on the same page, just scroll to top
-            if (window.location.pathname === '/') {
+            if (isHome()) {
                 window.scrollTo({ top: 0, behavior: 'smooth' })
                 setActive('home')
                 return
             }
 
             // Navigate to home then scroll to top
-            router.push('/')
+            router.push(href('/'))
             setActive('home')
             setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 250)
             return
@@ -46,7 +47,7 @@ const Header: React.FC = () => {
         }
 
         // Not on the same page (e.g., user is on /calendar). Navigate to home with hash then try to scroll.
-        const target = `/#${id}`
+        const target = `${href('/')}#${id}`
         router.push(target)
         setActive(id)
 
@@ -157,7 +158,7 @@ const Header: React.FC = () => {
                                 </button>
                             </li>
                             <li>
-                                <a href='/calendar' className='flex items-center gap-2 text-[#16205B] font-light' onClick={() => setMenuOpen(false)}>
+                                <a href={href('/calendar/')} className='flex items-center gap-2 text-[#16205B] font-light' onClick={() => setMenuOpen(false)}>
                                     <CiCalendar size={30} color='#FF7300' />
                                     {t.nav.calendar}
                                 </a>
@@ -200,7 +201,7 @@ const Header: React.FC = () => {
 
                             <div className='flex items-center gap-3 '>
                                 <LanguageSwitcher className='text-white' />
-                                <a href='/calendar' aria-label={t.nav.calendar} title={t.nav.calendar}>
+                                <a href={href('/calendar/')} aria-label={t.nav.calendar} title={t.nav.calendar}>
                                     <CiCalendar size={33} color='#FF7300' className='cursor-pointer hover:scale-110 transition-transform' />
                                 </a>
 

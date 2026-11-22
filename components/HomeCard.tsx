@@ -73,16 +73,8 @@ const HomeCard = () => {
               "
               type="button"
               onClick={() => {
-                if (window.location.pathname === '/') {
-                  const el = document.getElementById('join')
-                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                } else {
-                  router.push('/#join')
-                  setTimeout(() => {
-                    const el = document.getElementById('join')
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                  }, 300)
-                }
+                const el = document.getElementById('join')
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
               }}
             >
               {t.hero.becomeMember}

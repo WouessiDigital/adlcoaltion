@@ -44,10 +44,8 @@ const Form = () => {
         try {
             setSuccess(null); // reset previous success
 
-            const url =
-                typeof window !== "undefined"
-                    ? `${window.location.origin}/admin/api/submissions`
-                    : "/admin/api/submissions";
+            // PHP endpoint on the same host (public/api/submit.php).
+            const url = "/api/submit.php";
 
             const res = await fetch(url, {
                 method: "POST",
