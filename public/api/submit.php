@@ -22,12 +22,15 @@ if ($raw === false || strlen($raw) > 20000) out(413, ['ok' => false, 'code' => '
 $in = json_decode($raw, true);
 if (!is_array($in)) out(400, ['ok' => false, 'code' => 'BAD_JSON']);
 
+// Every field must be a plain string: lists or objects are rejected, never cast.
+foreach (['name', 'email', 'message', 'locale', 'website'] as $k) {
+    if (isset($in[$k]) && !is_string($in[$k])) out(422, ['ok' => false, 'code' => 'INVALID', 'fields' => [$k]]);
+}
 // Honeypot: bots fill the hidden "website" field. Pretend success, store nothing.
-if (trim((string)($in['website'] ?? '')) !== '') out(200, ['ok' => true]);
-
-$name    = trim((string)($in['name'] ?? ''));
-$email   = trim((string)($in['email'] ?? ''));
-$message = trim((string)($in['message'] ?? ''));
+if (trim($in['website'] ?? '') !== '') out(200, ['ok' => true]);
+$name    = trim($in['name'] ?? '');
+$email   = trim($in['email'] ?? '');
+$message = trim($in['message'] ?? '');
 $locale  = ($in['locale'] ?? '') === 'fr' ? 'fr' : 'en';
 
 $errors = [];

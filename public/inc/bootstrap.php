@@ -2,6 +2,7 @@
 // ADLC shared backend code (NameHero / cPanel). Not web-reachable: public/inc/.htaccess denies all.
 declare(strict_types=1);
 if (!defined('ADLC')) { http_response_code(404); exit; }
+header_remove('X-Powered-By');
 
 // Private folder OUTSIDE the web root: /home/<cpanel-user>/adlc-private.
 // On cPanel, PHP runs as the account user, so the user's home folder is the safe anchor.
