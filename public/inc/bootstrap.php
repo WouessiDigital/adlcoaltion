@@ -164,5 +164,19 @@ function e(?string $s): string { return htmlspecialchars((string)$s, ENT_QUOTES 
 /** Strip CR/LF so values can never inject mail headers. */
 function adlc_oneline(string $s): string { return trim(preg_replace('/[\r\n\t]+/', ' ', $s)); }
 
-/** Host name of the configured public site (used to check where form posts come from). */
-function adlc_site_host(): string { return strtolower((string)parse_url(adlc_config()['site_url'], PHP_URL_HOST)); }
+/** scheme://host[:port] in canonical form, or '' if the URL is not http(s). */
+function adlc_origin_of(string $url): string {
+    $p = parse_url($url);
+    $scheme = strtolower($p['scheme'] ?? ''); $host = strtolower($p['host'] ?? '');
+    if (!in_array($scheme, ['https', 'http'], true) || $host === '') return '';
+    $port = $p['port'] ?? null;
+    $default = $scheme === 'https' ? 443 : 80;
+    return $scheme . '://' . $host . ($port !== null && (int)$port !== $default ? ':' . (int)$port : '');
+}
+
+/** Exact origins allowed to post the form: the configured site_url, plus any listed in 'extra_origins'. */
+function adlc_allowed_origins(): array {
+    $c = adlc_config();
+    $list = array_merge([$c['site_url']], (array)($c['extra_origins'] ?? []));
+    return array_values(array_filter(array_map('adlc_origin_of', $list)));
+}

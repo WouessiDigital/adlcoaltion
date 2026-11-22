@@ -20,15 +20,25 @@ const walk = (d) => readdirSync(d).forEach((f) => {
     hashes.add(`'sha256-${createHash('sha256').update(m[2], 'utf8').digest('base64')}'`);
   }
   if (/\son[a-z]+=["']/i.test(html.replace(/<script[\s\S]*?<\/script>/gi, ''))) {
-    console.warn(`WARNING: inline event handler in ${p} (blocked by a hash-only CSP)`);
+    throw new Error(`Inline event handler in ${p}: it would be blocked by the hash-only CSP. Build stopped.`);
+  }
+  if (/(href|src|action)=["']\s*javascript:/i.test(html)) {
+    throw new Error(`javascript: URL in ${p}. Build stopped.`);
   }
 });
 walk(OUT);
 
 const file = join(OUT, '.htaccess');
-const src = readFileSync(file, 'utf8');
+let src;
+try { src = readFileSync(file, 'utf8'); } catch { throw new Error('out/.htaccess is missing. Build stopped.'); }
+if (hashes.size === 0) throw new Error('No inline scripts found: unexpected for a Next.js export. Build stopped.');
 const marker = "script-src 'self' 'unsafe-inline'";
 if (!src.includes(marker)) throw new Error('CSP marker not found in out/.htaccess');
 const next = src.replace(marker, `script-src 'self' ${[...hashes].sort().join(' ')}`);
+const policy = (next.match(/Content-Security-Policy "([^"]+)"/) || [])[1] || '';
+const scriptSrc = (policy.match(/script-src ([^;]+)/) || [])[1] || '';
+if (!scriptSrc || /unsafe-inline/.test(scriptSrc)) throw new Error("script-src still allows 'unsafe-inline'. Build stopped.");
 writeFileSync(file, next);
+// Record the exact tested policy so the deployed header can be compared with it after upload.
+writeFileSync(join(OUT, '..', 'csp-expected.txt'), policy + '\n');
 console.log(`CSP: ${hashes.size} inline script hashes from ${pages} pages; 'unsafe-inline' removed from script-src.`);

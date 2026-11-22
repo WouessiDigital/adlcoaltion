@@ -5,6 +5,9 @@ ErrorDocument 404 /not-found.html
 
 <IfModule mod_rewrite.c>
 RewriteEngine On
+# Production canonical host: www.adlcoalition.org -> adlcoalition.org (fixed target, not the request's Host)
+RewriteCond %{HTTP_HOST} ^www\.adlcoalition\.org$ [NC]
+RewriteRule ^ https://adlcoalition.org%{REQUEST_URI} [L,R=301]
 # Force HTTPS (server's own TLS state only; NameHero terminates TLS itself)
 RewriteCond %{HTTPS} !=on
 RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]

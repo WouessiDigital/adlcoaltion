@@ -30,12 +30,18 @@ try {
     $pdo->exec('VACUUM INTO ' . $pdo->quote($target));
     @chmod($target, 0600);
 
-    // 3. Prove the copy opens and holds the same data.
+    // 3. Prove the copy is a complete, readable database. (VACUUM INTO is a consistent snapshot; the live
+    //    database may legitimately change while it runs, so the copy is NOT compared with live counts.)
     $copy = new PDO('sqlite:' . $target, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
     if ($copy->query('PRAGMA integrity_check')->fetchColumn() !== 'ok') fail('backup copy failed integrity check');
-    $live = (int)$pdo->query('SELECT COUNT(*) FROM members')->fetchColumn();
-    $copied = (int)$copy->query('SELECT COUNT(*) FROM members')->fetchColumn();
-    if ($copied !== $live) fail("member count mismatch (live $live, backup $copied)");
+    $schema = (int)$copy->query('PRAGMA user_version')->fetchColumn();
+    $liveSchema = (int)$pdo->query('PRAGMA user_version')->fetchColumn();
+    if ($schema !== $liveSchema) fail("backup schema version $schema differs from live $liveSchema");
+    $tables = $copy->query("SELECT name FROM sqlite_master WHERE type = 'table'")->fetchAll(PDO::FETCH_COLUMN);
+    foreach (['members', 'admins', 'audit_log', 'rate_limits'] as $t) {
+        if (!in_array($t, $tables, true)) fail("backup is missing table $t");
+    }
+    $live = (int)$copy->query('SELECT COUNT(*) FROM members')->fetchColumn();   // members in the snapshot
     $copy = null;
 } catch (Throwable $e) {
     fail($e->getMessage());

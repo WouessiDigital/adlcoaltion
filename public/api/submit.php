@@ -15,9 +15,9 @@ if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0) out(415, 
 
 // Same-site only: browsers always send Origin on a POST from the form. Require it (or Referer as a
 // fallback) and require it to be the configured site, not whatever Host header the request carries.
-$from = $_SERVER['HTTP_ORIGIN'] ?? ($_SERVER['HTTP_REFERER'] ?? '');
-$fromHost = $from !== '' ? strtolower((string)parse_url($from, PHP_URL_HOST)) : '';
-if ($fromHost === '' || !hash_equals(adlc_site_host(), $fromHost)) out(403, ['ok' => false, 'code' => 'ORIGIN']);
+// The full origin (scheme + host + port) must match exactly; each environment has its own site_url.
+$from = adlc_origin_of($_SERVER['HTTP_ORIGIN'] ?? ($_SERVER['HTTP_REFERER'] ?? ''));
+if ($from === '' || !in_array($from, adlc_allowed_origins(), true)) out(403, ['ok' => false, 'code' => 'ORIGIN']);
 
 $raw = file_get_contents('php://input', false, null, 0, 20001);
 if ($raw === false || strlen($raw) > 20000) out(413, ['ok' => false, 'code' => 'TOO_LARGE']);

@@ -62,7 +62,10 @@ if (!$me) {
         $acct = hash('sha256', 'acct|' . $em);
         // Two limits: 5 tries per 15 min from one address, and 10 per 15 min against one account
         // from anywhere (slows attacks spread over many addresses).
-        if (adlc_rate_limited('login', 5, 900) || adlc_rate_limited('login_acct', 10, 900, $acct)) {
+        // Both counters are always updated (no short-circuit), then combined.
+        $ipLimited = adlc_rate_limited('login', 5, 900);
+        $acctLimited = adlc_rate_limited('login_acct', 10, 900, $acct);
+        if ($ipLimited || $acctLimited) {
             adlc_audit($em ?: '(blank)', 'login_blocked');
             $err = 'Too many attempts. Wait 15 minutes and try again.';
         } else {
@@ -114,6 +117,24 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
     $id = (int)($_POST['id'] ?? 0);
+    if (($_POST['confirmed'] ?? '') !== '1') {
+        // Server-side confirmation: works even when JavaScript is off.
+        $q = $db->prepare('SELECT name, email FROM members WHERE id = ?'); $q->execute([$id]); $m = $q->fetch();
+        if (!$m) { header('Location: ./'); exit; }
+        page_head('Confirm deletion'); ?>
+        <main class="card narrow">
+          <h1>Delete this request permanently?</h1>
+          <p><strong><?= e($m['name']) ?></strong><br><?= e($m['email']) ?></p>
+          <p>This cannot be undone.</p>
+          <form method="post" class="row" style="justify-content:center">
+            <input type="hidden" name="csrf" value="<?= e($csrf) ?>"><input type="hidden" name="id" value="<?= $id ?>">
+            <input type="hidden" name="confirmed" value="1">
+            <button name="action" value="delete" class="danger">Yes, delete</button>
+            <a href="./" class="cancel">Cancel</a>
+          </form>
+        </main>
+        <?php page_foot(); exit;
+    }
     $db->prepare('DELETE FROM members WHERE id = ?')->execute([$id]);
     adlc_audit($me, 'delete', "member $id"); $flash = 'Deleted.';
 }
@@ -121,7 +142,10 @@ if ($action === 'password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
     $q = $db->prepare('SELECT hash FROM admins WHERE email = ?'); $q->execute([$me]);
     $new = (string)($_POST['new'] ?? '');
-    if (adlc_rate_limited('pw_change', 5, 900)) $flash = 'Too many attempts. Wait 15 minutes and try again.';
+    // Limited per admin account (so colleagues on the same network are not affected), with a looser per-address cap.
+    $pwAcct = adlc_rate_limited('pw_change_acct', 5, 900, hash('sha256', 'pw|' . $me));
+    $pwIp = adlc_rate_limited('pw_change', 20, 900);
+    if ($pwAcct || $pwIp) $flash = 'Too many attempts. Wait 15 minutes and try again.';
     elseif (!password_verify((string)($_POST['current'] ?? ''), (string)$q->fetchColumn())) { $flash = 'Current password is wrong.'; adlc_audit($me, 'password_change_failed'); }
     elseif (strlen($new) < 12) $flash = 'New password must be at least 12 characters.';
     else {
@@ -177,6 +201,7 @@ page_head('ADLC Admin'); ?>
       <select name="status"><?php foreach ($statuses as $k => $label): ?><option value="<?= $k ?>" <?= $r['status'] === $k ? 'selected' : '' ?>><?= $label ?></option><?php endforeach; ?></select>
       <input name="notes" placeholder="Internal notes" value="<?= e($r['notes']) ?>">
       <button name="action" value="update">Save</button>
+      <input type="hidden" name="confirmed" value="0">
       <button name="action" value="delete" class="danger" data-confirm="Delete this request permanently?">Delete</button>
     </form>
   </article>
@@ -204,7 +229,7 @@ button:hover{background:var(--y);color:var(--ink)}.ghost{background:transparent;
 .top{display:flex;justify-content:space-between;align-items:center;gap:8px}h2{margin:0;font-size:18px}.meta{color:#6b7280;font-size:13px}.msg{white-space:normal;line-height:1.5}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row select{width:auto}.row input{flex:1;min-width:160px;margin:0}
 .pill{font-size:12px;padding:3px 10px;border-radius:999px;background:#e5e7eb}.pill.new{background:#fef3c7}.pill.approved{background:#dcfce7}.pill.declined{background:#fee2e2}
-.err{color:#b91c1c}.flash{background:#ecfdf5;border:1px solid #10b981;padding:10px;border-radius:8px}
+.cancel{padding:10px 18px;color:var(--ink)}.err{color:#b91c1c}.flash{background:#ecfdf5;border:1px solid #10b981;padding:10px;border-radius:8px}
 </style></head><body>
 <?php }
 function page_foot(): void { echo '<script src="/admin/admin.js"></script></body></html>'; }

@@ -1,53 +1,97 @@
-# adlcoalition.org: go-live runbook (Docker VPS to NameHero)
+# adlcoalition.org: go-live runbook v2 (Docker VPS to NameHero)
 
 Owner: Rod Fouafou (approves each gate). Operator: Claude.
-Principle: at every moment, exactly one server accepts membership requests, and there is a tested way back.
+Principles: (1) exactly one server accepts membership requests at any moment; (2) visitors never see a certificate error; (3) every step has a tested way back.
 
-## Facts checked on Nov 22, 2026
-- DNS is at GoDaddy (ns37/ns38.domaincontrol.com). `adlcoalition.org` and `www` both point to the old VPS 45.43.27.80. TTL is about 600 s.
-- The domain has **no MX and no SPF record**, and a DMARC policy of `p=quarantine`. Mail "from" adlcoalition.org is quarantined today unless we authorize the sender.
-- NameHero server: PHP 8.3 (LiteSpeed), runs as the account user, account isolation active (other accounts' folders not visible), `REMOTE_ADDR` is the real visitor address, PHP errors are not shown to visitors.
+## Facts (re-check all of them immediately before Gate 1)
+- DNS at GoDaddy (ns37/ns38.domaincontrol.com). `adlcoalition.org` and `www` point to the old VPS 45.43.27.80; TTL about 600 s.
+- Domain email: **no MX, no SPF**, DMARC `p=quarantine`. Nothing sends mail as adlcoalition.org today.
+- Old site database: SQLite `/data/members.db`, table `members(id, name, email, message, datecreated)`. It has no status or notes.
+- NameHero: PHP 8.3 LiteSpeed, runs as the account user, account isolation active, real visitor IP in `REMOTE_ADDR`, PHP errors hidden.
 
-## Gate 0: before the day (prepare, nothing changes for visitors)
-1. **Create a dedicated cPanel account** `adlcoalition.org` in WHM (not an add-on domain). Enable two-factor login for it.
-2. **Email Routing** (cPanel → Email Routing): set to **Remote Mail Exchanger**, so the server never swallows mail for @adlcoalition.org locally.
-3. **Choose the alert inbox** (`notify_to`): a real, monitored mailbox of an ADLC person. The domain has no mailboxes.
-4. **Sender authorization** (GoDaddy DNS, done the same day as the switch):
-   - SPF: `TXT @ "v=spf1 a mx ip4:<NameHero server IP> ~all"` (exact value from cPanel → Email Deliverability).
-   - DKIM: the `default._domainkey` TXT record shown in cPanel → Email Deliverability.
-   - Keep the existing DMARC record.
-5. **Lower DNS TTL** for `@` and `www` to 300 s, at least 24 h before the switch.
-6. **Upload the site** (static build + PHP) to the new account. Create `~/adlc-private/config.php` (0600) with the admin emails and bcrypt hashes. Copy `deploy/adlc-backup.php` to `~/adlc-private/` (0600).
-7. **Daily backup cron** (cPanel → Cron Jobs), 03:17 Toronto time:
-   `/usr/local/bin/php ~/adlc-private/adlc-backup.php`
-   It checks the database, makes a consistent copy (`VACUUM INTO`), verifies it, keeps 30 days and is silent unless something fails (then cPanel emails the account contact). Off-site copy: download the newest file weekly to Wouessi SharePoint (IT and R&D folder) until an automated off-site copy is set up.
-8. **Test on the new account** through a temporary hostname: both languages, both calendars, the form, the admin (login, status, delete, CSV, password change), the security scan.
+## Gate 0: prepare (nothing changes for visitors)
+1. **Dedicated cPanel account** `adlcoalition.org` in WHM (not an add-on domain), with two-factor login. Contact email: rod@wouessi.com (receives cron failure alerts).
+2. **Email Routing**: Remote Mail Exchanger.
+3. **Alert inbox** (`notify_to`): a real, monitored ADLC mailbox, chosen by Rod.
+4. **Upload the release** built with `npm run package`. The build fails on its own if the public security policy still allows inline scripts, if an inline event handler or `javascript:` link appears, or if `.htaccess` is missing. Never upload the source `public/.htaccess`; only the built `out/` folder.
+5. **Private folder** `~/adlc-private/` (0700): `config.php` (0600) with `site_url => 'https://adlcoalition.org'`, admin emails and bcrypt hashes, `notify_to`, `mail_from => 'no-reply@adlcoalition.org'`; `adlc-backup.php` and `adlc-members-sync.php` (0600). The test site keeps its own config with `site_url => 'https://adlc-test.wouessi.com'`.
+6. **Certificate BEFORE DNS** (no visitor ever sees a warning):
+   - Preferred: copy the old server's current Let's Encrypt certificate and private key for `adlcoalition.org` + `www` and install them in the new account (cPanel → SSL/TLS → Install). AutoSSL replaces it automatically once DNS points to NameHero.
+   - Fallback: issue a new certificate with DNS validation (a temporary TXT record at GoDaddy), then install it the same way.
+   - Treat the copied private key as a secret: transfer it directly, never by email or chat, and delete the temporary copy afterwards.
+7. **Full production test before DNS**, using the real hostname pointed at NameHero only on the test machine (`curl --resolve adlcoalition.org:443:<NameHero IP>` and a hosts-file entry in the browser):
+   - valid certificate for `adlcoalition.org` and `www`; `www` redirects to `adlcoalition.org`;
+   - both languages and both calendars; old links `/?lang=fr`, `/?lang=en`, `/calendar`;
+   - pages are indexable (no `noindex`), `hreflang` and canonical point to adlcoalition.org;
+   - the deployed security policy equals `csp-expected.txt` from the build;
+   - form submission from `https://adlcoalition.org` accepted, from any other origin refused;
+   - admin: login, status, delete (confirmation), CSV, password change signs out other sessions;
+   - security scan `sec.sh` passes.
+8. **Backups** (cPanel → Cron Jobs, 03:17 Toronto time): `/usr/local/bin/php ~/adlc-private/adlc-backup.php`.
+   - Controlled failure test: run it once against a missing database path and confirm the failure email reaches rod@wouessi.com.
+   - Confirm `~/adlc-private/backups/last-ok.txt` advances the next morning.
+   - Restore test: download the newest backup, open it, check member count and admin accounts.
+   - Off-site: a copy of the newest backup goes to Wouessi SharePoint (IT and R&D) every week until an automated daily encrypted off-site copy is in place. Accepted risk until then: up to 7 days of off-site recovery gap (NameHero's own account backups still run daily).
+   - Who checks: Claude, in the daily NameHero audit (last-ok date and backup count).
+9. **Lower DNS TTL** for `@` and `www` to 300 s at least 24 h before Gate 1.
+10. **Privacy sign-off by ADLC**: privacy notice text (already under the form in EN/FR), retention period, who may access member data, and the disclosure that data is hosted by NameHero.
 
-## Gate 1: the switch (about 30 minutes, low-traffic hour)
-1. **Freeze the old form.** On the old VPS, stop accepting submissions (maintenance response from the form API), so no request can land there after the export.
-2. **Final export** of members from the old SQLite database. Record the count.
-3. **Import** into `~/adlc-private/adlc.sqlite` on NameHero (owned by the cPanel user, 0600). Check: same member count, three sample records match.
-4. **Change DNS** at GoDaddy: `@` A record and `www` (A or CNAME) to the NameHero server IP. Add the SPF and DKIM records at the same time.
-5. **Issue the certificate**: as soon as DNS resolves to NameHero, run cPanel → SSL/TLS Status → Run AutoSSL for `adlcoalition.org` and `www.adlcoalition.org`. Expect a few minutes during which some visitors see a certificate warning (the old site sent HSTS, so browsers will not fall back to HTTP). This is why the switch happens at a quiet hour with a short TTL.
+## Gate 1: the switch (about 30 minutes, quiet hour)
+1. **Freeze the old form**: the old server stops accepting submissions (maintenance answer from its form API). From now on, no member can land there.
+2. **Final export**: copy `/data/members.db` from the old server. Record the member count.
+3. **Import** on a working copy: `php adlc-members-sync.php import members.db adlc.sqlite`, then `compare` must show "Only in old: 0". Upload the result to `~/adlc-private/adlc.sqlite` (owner = cPanel user, 0600). Running the import twice adds nothing.
+4. **Record the cutover time** (UTC). It is the rollback reference.
+5. **DNS at GoDaddy**: `@` A and `www` to the NameHero IP. Same time, email authentication for the alert sender only:
+   - SPF: `v=spf1 ip4:<NameHero sending IP> ~all` (authorize only the server that really sends; no `a`/`mx`, since the domain has no mail server);
+   - DKIM: `default._domainkey` TXT from cPanel → Email Deliverability;
+   - keep the existing DMARC record.
+6. The certificate is already installed (Gate 0 step 6), so HTTPS works the moment DNS resolves to NameHero.
 
-## Gate 2: first checks after the switch (in this order)
-1. `https://adlcoalition.org` and `https://www.adlcoalition.org`: valid certificate, 200, both languages.
-2. Old links: `/?lang=fr`, `/?lang=en`, `/calendar` redirect correctly.
-3. Form: one real test submission arrives in the admin; the alert email reaches the inbox (not spam). Delete the test entry.
-4. Admin: login works; member count equals the export count.
-5. Security headers and the scan script (`sec.sh`) pass on the production hostname.
-6. Production pages do **not** carry `noindex` (only the test hostname does).
-7. Search Console: submit the new `/en/` and `/fr/` pages.
+## Gate 2: first checks after the switch (in this order), with rollback triggers
+1. `https://adlcoalition.org` and `https://www.adlcoalition.org` from two outside networks: valid certificate, 200, both languages. **Trigger:** certificate or 5xx errors not fixed within 15 minutes.
+2. Old links redirect correctly.
+3. One real test submission: appears in the admin; alert email arrives in the inbox, not spam, with SPF and DKIM "pass". Delete the test entry.
+4. Admin login; member count equals the exported count.
+5. `sec.sh` and the security policy check pass on the production hostname.
+6. Search Console: submit `/en/` and `/fr/`.
 
-## Rollback (any time in the first week)
-- Point the DNS records back to 45.43.27.80. The old VPS stays on, with its form frozen, so it serves the site but takes no new members.
-- Any members received on NameHero meanwhile are exported from `~/adlc-private/adlc.sqlite` before switching back, so nothing is lost.
+## Rollback (first week), with no member lost
+1. Freeze the NameHero form (maintenance answer from `api/submit.php`).
+2. Download `~/adlc-private/adlc.sqlite` and the old server's `/data/members.db`.
+3. `php adlc-members-sync.php rollback adlc.sqlite members.db "<cutover UTC>" rollback-report.csv` copies every member received on NameHero into the old database without duplicates; the CSV lists their status/notes and every admin update or deletion made on NameHero (the old site cannot store these; re-enter or keep them on file).
+4. `compare` must show "Only in new: 0".
+5. Upload `members.db` back to the old server, re-enable its form, point DNS back to 45.43.27.80.
+6. Confirm only the old server accepts submissions.
+(Rehearsed on Nov 22, 2026 with sample data: import twice = no duplicates; rollback copied the post-cutover member back and listed the admin change; final compare 0/0.)
 
 ## After one week
-- Delete the old VPS data securely and cancel the VPS. Before cancelling, move the WouessiDigital GitHub credentials that live on it.
-- Remove the test subdomain `adlc-test.wouessi.com` and its private folder from the wouessi.com account.
-- Delete the test entries from the admin.
+- **Credentials on the old VPS**: list every token and key there (including the WouessiDigital GitHub credentials), **revoke and replace** them (do not just copy them), then wipe the VPS data and cancel it.
+- Remove the test subdomain `adlc-test.wouessi.com` and its private folder.
+- Delete test entries from the admin.
 
 ## Updating the site later
-- Build with `npm run package` (it also regenerates the script fingerprints in the security policy).
-- Upload the zip to a new folder, check it, then swap folders, instead of overwriting files one by one while visitors are on the site.
+`npm run package` → upload to a new folder → check it against the tested policy → swap folders. The private folder is outside the release, so data and settings survive every swap.
+
+## Final acceptance checklist (sign before Gate 1)
+| Test | Pass condition | Status |
+|---|---|---|
+| Test-site form | Authorized submission succeeds | Passed (Nov 22) |
+| Wrong origin, scheme, port or lookalike host | Refused | Passed |
+| Concurrency | 40 simultaneous requests never exceed the limit | Passed |
+| Session revocation | Password change signs out other sessions | Passed |
+| Delete confirmation | Works with and without JavaScript | Passed |
+| Backup during live writes | Consistent backup, no false alarm | Passed (local) |
+| Backup cron + failure alert | Alert received | Pending (needs cron approval) |
+| Restore | Backup opens with members and admins | Passed (local); repeat on NameHero |
+| Production certificate | Installed and valid before DNS | Pending (Gate 0) |
+| Production hostname test via --resolve | All Gate 0 step 7 checks | Pending |
+| Email | Alert delivered, SPF/DKIM pass | Pending (Gate 1) |
+| Import | Old and new counts match, compare 0 | Pending (Gate 1) |
+| Rollback rehearsal | No loss, no duplicates | Passed (sample data) |
+| Public security policy | No `unsafe-inline` in script-src | Passed (test site) |
+| SEO | Production indexable, test site `noindex` | Test site passed; production pending |
+| Privacy | Notice, retention, access approved by ADLC | Pending (ADLC) |
+
+## Accepted, documented trade-offs
+- **Visible form labels**: the fields keep placeholders only, to match the current design exactly; screen readers get proper labels (`aria-label`), and errors are linked to their fields.
+- **Admin two-factor login**: not yet; strong passwords, lockouts and session revocation in place. Decision for Rod: add before launch, or within 30 days of launch.
