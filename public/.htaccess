@@ -5,9 +5,8 @@ ErrorDocument 404 /not-found.html
 
 <IfModule mod_rewrite.c>
 RewriteEngine On
-# Force HTTPS
+# Force HTTPS (server's own TLS state only; NameHero terminates TLS itself)
 RewriteCond %{HTTPS} !=on
-RewriteCond %{HTTP:X-Forwarded-Proto} !=https
 RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 # Old ?lang=fr links go to the French pages
 RewriteCond %{QUERY_STRING} (^|&)lang=fr(&|$)
@@ -19,9 +18,16 @@ RewriteRule ^calendar/?$ /en/calendar/ [L,R=301]
 </IfModule>
 
 # Never serve hidden files, sources, backups or databases
-<FilesMatch "(^\.|\.(sql|sqlite|db|md|log|bak|ini|sh|lock|json)$)">
+<FilesMatch "(^\.|\.(sql|sqlite|sqlite-wal|sqlite-shm|db|md|log|bak|old|orig|swp|ini|sh|lock|env)$|~$)">
   Require all denied
 </FilesMatch>
+# Project/config JSON never belongs on the server (Next.js's own /_next/ JSON files stay allowed)
+<FilesMatch "^(package|package-lock|tsconfig|composer|components)\.json$">
+  Require all denied
+</FilesMatch>
+
+# The temporary test address must never appear in search engines
+SetEnvIfNoCase Host "^adlc-test\." ADLC_TEST_HOST
 
 <IfModule mod_headers.c>
   Header always set Strict-Transport-Security "max-age=31536000"
@@ -29,6 +35,7 @@ RewriteRule ^calendar/?$ /en/calendar/ [L,R=301]
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+  Header always set X-Robots-Tag "noindex, nofollow" env=ADLC_TEST_HOST
   Header always unset X-Powered-By
   Header unset X-Powered-By
   Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-src https://calendar.google.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"

@@ -1,5 +1,5 @@
-# Admin only: never framed, stricter policy than the public pages.
+# Admin only: never framed, no inline script, same policy as admin/index.php sends.
 <IfModule mod_headers.c>
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
   Header always set X-Frame-Options "DENY"
 </IfModule>

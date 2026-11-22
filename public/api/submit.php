@@ -13,9 +13,11 @@ function out(int $code, array $body): never { http_response_code($code); echo js
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') out(405, ['ok' => false, 'code' => 'METHOD']);
 if (stripos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== 0) out(415, ['ok' => false, 'code' => 'JSON_ONLY']);
 
-// Same-site only: browsers send Origin on POST; reject other sites posting into the form.
-$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-if ($origin !== '' && parse_url($origin, PHP_URL_HOST) !== ($_SERVER['HTTP_HOST'] ?? '')) out(403, ['ok' => false, 'code' => 'ORIGIN']);
+// Same-site only: browsers always send Origin on a POST from the form. Require it (or Referer as a
+// fallback) and require it to be the configured site, not whatever Host header the request carries.
+$from = $_SERVER['HTTP_ORIGIN'] ?? ($_SERVER['HTTP_REFERER'] ?? '');
+$fromHost = $from !== '' ? strtolower((string)parse_url($from, PHP_URL_HOST)) : '';
+if ($fromHost === '' || !hash_equals(adlc_site_host(), $fromHost)) out(403, ['ok' => false, 'code' => 'ORIGIN']);
 
 $raw = file_get_contents('php://input', false, null, 0, 20001);
 if ($raw === false || strlen($raw) > 20000) out(413, ['ok' => false, 'code' => 'TOO_LARGE']);
@@ -48,19 +50,22 @@ try {
     out(500, ['ok' => false, 'code' => 'SERVER']);
 }
 
-// Plain-text alert to the ADLC inbox (only if configured). Member data never goes to a personal fallback address.
+// Short plain-text alert to the ADLC inbox (only if configured). The member's message is NOT emailed:
+// it stays in the admin, which is the authoritative record. No personal fallback address.
 $cfg = adlc_config();
-if (filter_var($cfg['notify_to'], FILTER_VALIDATE_EMAIL)) {
-    $body = "New ADLC membership request\n\n"
+$fromAddr = adlc_oneline($cfg['mail_from']);
+if (filter_var($cfg['notify_to'], FILTER_VALIDATE_EMAIL) && filter_var($fromAddr, FILTER_VALIDATE_EMAIL)) {
+    $body = "A new membership request was received on the ADLC website.\n\n"
         . "Name: " . adlc_oneline($name) . "\n"
         . "Email: " . adlc_oneline($email) . "\n"
         . "Language: " . strtoupper($locale) . "\n\n"
-        . "Message:\n" . str_replace("\r", '', $message) . "\n\n"
-        . "Review it in the admin: " . rtrim($cfg['site_url'], '/') . "/admin/\n";
-    $headers = "From: ADLC Website <" . adlc_oneline($cfg['mail_from']) . ">\r\n"
+        . "Read and manage it in the admin: " . rtrim($cfg['site_url'], '/') . "/admin/\n";
+    $headers = "From: ADLC Website <$fromAddr>\r\n"
         . "Reply-To: " . adlc_oneline($email) . "\r\n"
         . "Content-Type: text/plain; charset=UTF-8\r\n";
-    @mail($cfg['notify_to'], '=?UTF-8?B?' . base64_encode('New ADLC membership request: ' . adlc_oneline($name)) . '?=', $body, $headers);
+    // -f sets the envelope sender to the site's own address so SPF/DMARC can align.
+    $sent = mail($cfg['notify_to'], '=?UTF-8?B?' . base64_encode('New ADLC membership request') . '?=', $body, $headers, '-f' . $fromAddr);
+    if (!$sent) error_log('ADLC notify: mail() returned false (request saved; see admin)');
 }
 
 out(200, ['ok' => true]);

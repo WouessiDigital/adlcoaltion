@@ -6,16 +6,26 @@ require __DIR__ . '/../inc/bootstrap.php';
 
 header('Cache-Control: no-store');
 header('X-Robots-Tag: noindex, nofollow');
-header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'");
+// One admin policy, identical to public/admin/.htaccess: no inline script at all.
+header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'");
+header('X-Frame-Options: DENY');
 
+// HTTPS is read from the server itself only (forwarded headers can be forged).
 $https = (($_SERVER['HTTPS'] ?? '') !== '' && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['SERVER_PORT'] ?? '') === '443');
 session_name($https ? '__Host-adlc_admin' : 'adlc_admin');
 session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => $https, 'httponly' => true, 'samesite' => 'Strict']);
 ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
+// Sessions live in the private folder, never in the server's shared temp folders.
+$sessDir = ADLC_PRIVATE . '/sessions';
+if (!is_dir($sessDir)) mkdir($sessDir, 0700, true);
+session_save_path($sessDir);
+ini_set('session.gc_maxlifetime', '1800');
+ini_set('session.gc_probability', '1');
+ini_set('session.gc_divisor', '50');
 session_start();
 
 $db = adlc_db();
-$db->exec('CREATE TABLE IF NOT EXISTS admins (email VARCHAR(254) PRIMARY KEY, hash VARCHAR(255) NOT NULL)');
 // First run: seed admins from the private config file.
 if ((int)$db->query('SELECT COUNT(*) FROM admins')->fetchColumn() === 0) {
     foreach (adlc_config()['admins'] as $em => $hash) {
@@ -25,7 +35,14 @@ if ((int)$db->query('SELECT COUNT(*) FROM admins')->fetchColumn() === 0) {
 
 const IDLE = 1800; // 30 minutes
 $me = $_SESSION['admin'] ?? null;
-if ($me && (time() - ($_SESSION['seen'] ?? 0)) > IDLE) { $_SESSION = []; session_regenerate_id(true); $me = null; }
+if ($me) {
+    // Still an admin, same session version (a password change bumps it), and not idle too long.
+    $q = $db->prepare('SELECT session_version FROM admins WHERE email = ?'); $q->execute([$me]);
+    $sv = $q->fetchColumn();
+    if ($sv === false || (int)$sv !== (int)($_SESSION['sv'] ?? -1) || (time() - ($_SESSION['seen'] ?? 0)) > IDLE) {
+        $_SESSION = []; session_regenerate_id(true); $me = null;
+    }
+}
 if ($me) $_SESSION['seen'] = time();
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(32));
 $csrf = $_SESSION['csrf'];
@@ -41,18 +58,24 @@ if (!$me) {
     $err = '';
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'login') {
         check_csrf();
-        if (adlc_rate_limited('login', 5, 900)) {
+        $em = strtolower(trim((string)($_POST['email'] ?? '')));
+        $acct = hash('sha256', 'acct|' . $em);
+        // Two limits: 5 tries per 15 min from one address, and 10 per 15 min against one account
+        // from anywhere (slows attacks spread over many addresses).
+        if (adlc_rate_limited('login', 5, 900) || adlc_rate_limited('login_acct', 10, 900, $acct)) {
+            adlc_audit($em ?: '(blank)', 'login_blocked');
             $err = 'Too many attempts. Wait 15 minutes and try again.';
         } else {
-            $em = strtolower(trim((string)($_POST['email'] ?? '')));
-            $q = $db->prepare('SELECT hash FROM admins WHERE email = ?'); $q->execute([$em]);
-            $hash = $q->fetchColumn();
+            $q = $db->prepare('SELECT hash, session_version FROM admins WHERE email = ?'); $q->execute([$em]);
+            $row = $q->fetch() ?: null;
+            $hash = $row['hash'] ?? false;
             // Verify against a dummy hash when the user is unknown, so timing reveals nothing.
             $ok = password_verify((string)($_POST['password'] ?? ''), $hash ?: '$2y$10$eJ9jg4L1Li.VAGEtmJaW5.l9etQGcB2bPWOmAs0fvAwZgU2u1FYee');
             if ($ok && $hash) {
                 session_regenerate_id(true);
-                $_SESSION['admin'] = $em; $_SESSION['seen'] = time(); $_SESSION['csrf'] = bin2hex(random_bytes(32));
-                adlc_clear_rate('login'); adlc_audit($em, 'login');
+                $_SESSION['admin'] = $em; $_SESSION['sv'] = (int)$row['session_version'];
+                $_SESSION['seen'] = time(); $_SESSION['csrf'] = bin2hex(random_bytes(32));
+                adlc_clear_rate('login'); adlc_clear_rate('login_acct', $acct); adlc_audit($em, 'login');
                 header('Location: ./'); exit;
             }
             adlc_audit($em ?: '(blank)', 'login_failed');
@@ -98,11 +121,15 @@ if ($action === 'password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     check_csrf();
     $q = $db->prepare('SELECT hash FROM admins WHERE email = ?'); $q->execute([$me]);
     $new = (string)($_POST['new'] ?? '');
-    if (!password_verify((string)($_POST['current'] ?? ''), (string)$q->fetchColumn())) $flash = 'Current password is wrong.';
+    if (adlc_rate_limited('pw_change', 5, 900)) $flash = 'Too many attempts. Wait 15 minutes and try again.';
+    elseif (!password_verify((string)($_POST['current'] ?? ''), (string)$q->fetchColumn())) { $flash = 'Current password is wrong.'; adlc_audit($me, 'password_change_failed'); }
     elseif (strlen($new) < 12) $flash = 'New password must be at least 12 characters.';
     else {
-        $db->prepare('UPDATE admins SET hash = ? WHERE email = ?')->execute([password_hash($new, PASSWORD_DEFAULT), $me]);
-        session_regenerate_id(true); adlc_audit($me, 'password_changed'); $flash = 'Password changed.';
+        // Bumping session_version signs out every other session of this admin.
+        $db->prepare('UPDATE admins SET hash = ?, session_version = session_version + 1 WHERE email = ?')->execute([password_hash($new, PASSWORD_DEFAULT), $me]);
+        $q = $db->prepare('SELECT session_version FROM admins WHERE email = ?'); $q->execute([$me]);
+        $_SESSION['sv'] = (int)$q->fetchColumn();
+        session_regenerate_id(true); adlc_audit($me, 'password_changed'); $flash = 'Password changed. Other sessions were signed out.';
     }
 }
 if ($action === 'csv' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -113,7 +140,7 @@ if ($action === 'csv' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     fputcsv($f, ['ID', 'Name', 'Email', 'Message', 'Language', 'Status', 'Notes', 'Received (UTC)']);
     foreach ($db->query('SELECT * FROM members ORDER BY id DESC') as $r) {
         // Guard against spreadsheet formula injection.
-        $row = array_map(fn($v) => preg_match('/^[=+\-@\t\r]/', (string)$v) ? "'" . $v : (string)$v,
+        $row = array_map('csv_safe',
             [$r['id'], $r['name'], $r['email'], $r['message'], $r['locale'], $r['status'], $r['notes'], $r['created_at']]);
         fputcsv($f, $row);
     }
@@ -150,7 +177,7 @@ page_head('ADLC Admin'); ?>
       <select name="status"><?php foreach ($statuses as $k => $label): ?><option value="<?= $k ?>" <?= $r['status'] === $k ? 'selected' : '' ?>><?= $label ?></option><?php endforeach; ?></select>
       <input name="notes" placeholder="Internal notes" value="<?= e($r['notes']) ?>">
       <button name="action" value="update">Save</button>
-      <button name="action" value="delete" class="danger" onclick="return confirm('Delete this request permanently?')">Delete</button>
+      <button name="action" value="delete" class="danger" data-confirm="Delete this request permanently?">Delete</button>
     </form>
   </article>
   <?php endforeach; ?>
@@ -180,4 +207,10 @@ button:hover{background:var(--y);color:var(--ink)}.ghost{background:transparent;
 .err{color:#b91c1c}.flash{background:#ecfdf5;border:1px solid #10b981;padding:10px;border-radius:8px}
 </style></head><body>
 <?php }
-function page_foot(): void { echo "</body></html>"; }
+function page_foot(): void { echo '<script src="/admin/admin.js"></script></body></html>'; }
+
+/** Spreadsheet-safe cell: neutralise formulas even after leading spaces or control characters. */
+function csv_safe($v): string {
+    $v = (string)$v;
+    return preg_match('/^[\x00-\x20]*[=+\-@|%]/', $v) ? "'" . $v : $v;
+}

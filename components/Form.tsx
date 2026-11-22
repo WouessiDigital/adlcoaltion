@@ -81,12 +81,12 @@ const Form = () => {
                 <form className='flex flex-col gap-4 w-full' onSubmit={handleSubmit(onSubmit)}>
                     {/* Honeypot for spam bots: hidden from people and screen readers */}
                     <input ref={honeypot} type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
-                    {errors.name && <span className='text-red-500'>{errors.name.message}</span>}
-                    <input type="text" className='w-full border p-3 rounded-md' placeholder={t.form.name} {...register("name")} />
-                    {errors.email && <span className='text-red-500'>{errors.email.message}</span>}
-                    <input type="email" className='w-full border p-3 rounded-md' placeholder={t.form.email} {...register("email")} />
-                    {errors.message && <span className='text-red-500'>{errors.message.message}</span>}
-                    <textarea rows={6} className='w-full border p-3 rounded-md  min-h-[10rem] resize-y' placeholder={t.form.message} {...register("message")} />
+                    {errors.name && <span id='err-name' className='text-red-500'>{errors.name.message}</span>}
+                    <input type="text" className='w-full border p-3 rounded-md' placeholder={t.form.name} aria-label={t.form.name} autoComplete="name" aria-invalid={!!errors.name} aria-describedby={errors.name ? 'err-name' : undefined} {...register("name")} />
+                    {errors.email && <span id='err-email' className='text-red-500'>{errors.email.message}</span>}
+                    <input type="email" className='w-full border p-3 rounded-md' placeholder={t.form.email} aria-label={t.form.email} autoComplete="email" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'err-email' : undefined} {...register("email")} />
+                    {errors.message && <span id='err-message' className='text-red-500'>{errors.message.message}</span>}
+                    <textarea rows={6} className='w-full border p-3 rounded-md  min-h-[10rem] resize-y' placeholder={t.form.message} aria-label={t.form.message} aria-invalid={!!errors.message} aria-describedby={errors.message ? 'err-message' : undefined} {...register("message")} />
                     <div className="flex justify-center flex-col gap-4 items-center">
                         {success && (
                             <div className="rounded-md bg-green-50 border border-[#FF7300] p-3 text-green-700 text-center text-sm">

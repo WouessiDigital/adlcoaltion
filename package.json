@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node scripts/csp-hashes.mjs",
     "lint": "eslint",
-    "package": "next build && cd out && zip -qr ../adlc-namehero.zip . -x \".DS_Store\""
+    "package": "npm run build && cd out && zip -qr ../adlc-namehero.zip . -x \".DS_Store\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
